@@ -11,6 +11,7 @@ import 'app/providers.dart';
 import 'core/dates.dart';
 import 'core/sync_rules.dart';
 import 'data/db/app_database.dart';
+import 'data/db/legacy_migrator.dart';
 import 'data/quickbooks/qbo_providers.dart';
 import 'data/secrets/secret_store.dart';
 import 'services/app_logger.dart';
@@ -35,7 +36,15 @@ Future<void> main(List<String> args) async {
   }
 
   await initializeDateFormatting('es');
+  // The legacy C# app used the same DB path: move it aside and import it.
+  LegacyData? legacy;
+  try {
+    legacy = LegacyMigrator.extractAndMoveAside(AppDatabase.defaultPath());
+  } catch (e, st) {
+    AppLogger.error('No se pudo migrar la base de datos de la versión anterior', e, st);
+  }
   final db = AppDatabase.open();
+  if (legacy != null) await LegacyMigrator.importInto(db, legacy);
   final secrets = SecureSecretStore();
   final container = ProviderContainer(overrides: [
     databaseProvider.overrideWithValue(db),
@@ -43,8 +52,10 @@ Future<void> main(List<String> args) async {
   ]);
 
   AppLogger.info('RMQBsync iniciado (datos en ${AppPaths.dataDir}).');
-  await FactorySecretsSeeder(secrets, container.read(settingsRepositoryProvider))
-      .seedIfNeeded(File(AppPaths.factorySecretsFile));
+  final seeder = FactorySecretsSeeder(secrets, container.read(settingsRepositoryProvider));
+  for (final path in AppPaths.factorySecretsCandidates) {
+    await seeder.seedIfNeeded(File(path));
+  }
   await container.read(historyRepositoryProvider).failStaleRunning();
 
   final auth = container.read(authServiceProvider);
