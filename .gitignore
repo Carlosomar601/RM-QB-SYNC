@@ -56,3 +56,5 @@ installer/output/
 *.db
 *.db-wal
 *.db-shm
+
+.localdata/
