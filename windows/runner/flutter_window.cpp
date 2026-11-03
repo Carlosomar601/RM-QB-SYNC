@@ -27,8 +27,14 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
-  flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+  // RMQBsync: when started with Windows ("--minimized") stay hidden in the
+  // system tray instead of flashing the window on the first frame.
+  const bool start_minimized =
+      wcsstr(::GetCommandLineW(), L"--minimized") != nullptr;
+  flutter_controller_->engine()->SetNextFrameCallback([this, start_minimized]() {
+    if (!start_minimized) {
+      this->Show();
+    }
   });
 
   // Flutter can complete the first frame before the "show window" callback is
