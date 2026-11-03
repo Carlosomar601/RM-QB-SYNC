@@ -42,6 +42,14 @@ Future<void> main(List<String> args) async {
     legacy = LegacyMigrator.extractAndMoveAside(AppDatabase.defaultPath());
   } catch (e, st) {
     AppLogger.error('No se pudo migrar la base de datos de la versión anterior', e, st);
+    // Never open the legacy EF database as ours (table names collide).
+    runApp(_StartupErrorApp(
+      'RMQBsync no pudo preparar su base de datos porque la versión anterior '
+      '(servicio "RMQBsync") la está usando.\n\n'
+      'Detenga el servicio anterior (o ejecute el instalador nuevo, que lo elimina) '
+      'y vuelva a abrir RMQBsync.\n\nDetalle: $e',
+    ));
+    return;
   }
   final db = AppDatabase.open();
   if (legacy != null) await LegacyMigrator.importInto(db, legacy);
@@ -80,4 +88,33 @@ Future<void> main(List<String> args) async {
   scheduler.start();
 
   runApp(UncontrolledProviderScope(container: container, child: const RmqbApp()));
+}
+
+/// Minimal screen shown when start-up cannot continue safely.
+class _StartupErrorApp extends StatelessWidget {
+  const _StartupErrorApp(this.message);
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'RMQBsync',
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.error_outline, size: 56, color: Colors.red),
+                  const SizedBox(height: 16),
+                  SelectableText(message, textAlign: TextAlign.center),
+                  const SizedBox(height: 24),
+                  FilledButton(onPressed: () => exit(1), child: const Text('Cerrar')),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
 }
