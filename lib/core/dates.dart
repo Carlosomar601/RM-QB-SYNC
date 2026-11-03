@@ -12,13 +12,13 @@ abstract final class Dates {
 
   /// `yyyy-MM-dd`
   static String iso(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${_2(d.month)}-${_2(d.day)}';
+      '${d.year.toString().padLeft(4, '0')}-${_pad2(d.month)}-${_pad2(d.day)}';
 
   /// `dd/MM/yyyy`
-  static String dmy(DateTime d) => '${_2(d.day)}/${_2(d.month)}/${d.year}';
+  static String dmy(DateTime d) => '${_pad2(d.day)}/${_pad2(d.month)}/${d.year}';
 
   /// `dd/MM/yyyy HH:mm`
-  static String dmyHm(DateTime d) => '${dmy(d)} ${_2(d.hour)}:${_2(d.minute)}';
+  static String dmyHm(DateTime d) => '${dmy(d)} ${_pad2(d.hour)}:${_pad2(d.minute)}';
 
   /// Parses `yyyy-MM-dd` or an ISO timestamp, returning the date part.
   static DateTime? tryParseDate(Object? value) {
@@ -31,12 +31,12 @@ abstract final class Dates {
 
   /// Inclusive day count between two dates.
   static int dayCount(DateTime from, DateTime to) =>
-      dateOnly(to).difference(dateOnly(from)).inHours ~/ 24 + 1;
+      DateTime.utc(to.year, to.month, to.day).difference(DateTime.utc(from.year, from.month, from.day)).inDays + 1;
 
   static bool inRange(DateTime d, DateTime from, DateTime to) {
     final x = dateOnly(d);
     return !x.isBefore(dateOnly(from)) && !x.isAfter(dateOnly(to));
   }
 
-  static String _2(int v) => v.toString().padLeft(2, '0');
+  static String _pad2(int v) => v.toString().padLeft(2, '0');
 }

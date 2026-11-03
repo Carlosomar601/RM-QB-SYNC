@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 /// One row per connected QuickBooks company (only one is used).
+@DataClassName('OAuthConnectionRow')
 class OAuthConnections extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get edition => text().withDefault(const Constant('QuickBooksOnline'))();
@@ -14,6 +15,7 @@ class OAuthConnections extends Table {
   DateTimeColumn get lastSyncAt => dateTime().nullable()();
 }
 
+@DataClassName('AccountMappingRow')
 class AccountMappings extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get category => text().unique()();
@@ -23,10 +25,11 @@ class AccountMappings extends Table {
   TextColumn get description => text().nullable()();
   TextColumn get entityType => text().nullable()(); // Customer | Vendor
   TextColumn get entityId => text().nullable()();
-  TextColumn get entityName => text().nullable()();
+  TextColumn get entityDisplayName => text().named('entity_name').nullable()();
   DateTimeColumn get updatedAt => dateTime()();
 }
 
+@DataClassName('SyncScheduleRow')
 class SyncSchedules extends Table {
   IntColumn get id => integer().autoIncrement()();
   BoolColumn get enabled => boolean().withDefault(const Constant(false))();
@@ -38,6 +41,7 @@ class SyncSchedules extends Table {
   DateTimeColumn get nextRunAt => dateTime().nullable()();
 }
 
+@DataClassName('SyncHistoryRow')
 class SyncHistory extends Table {
   IntColumn get id => integer().autoIncrement()();
   DateTimeColumn get ranAt => dateTime()();
@@ -54,6 +58,7 @@ class SyncHistory extends Table {
   TextColumn get errorMessage => text().nullable()();
 }
 
+@DataClassName('UserRow')
 class Users extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get username => text().unique()();
@@ -68,6 +73,7 @@ class Users extends Table {
   DateTimeColumn get lastLoginAt => dateTime().nullable()();
 }
 
+@DataClassName('AuditLogRow')
 class AuditLog extends Table {
   IntColumn get id => integer().autoIncrement()();
   DateTimeColumn get timestamp => dateTime()();
@@ -76,6 +82,7 @@ class AuditLog extends Table {
   TextColumn get details => text().nullable()();
 }
 
+@DataClassName('AppSettingRow')
 class AppSettings extends Table {
   TextColumn get key => text()();
   TextColumn get value => text()();
