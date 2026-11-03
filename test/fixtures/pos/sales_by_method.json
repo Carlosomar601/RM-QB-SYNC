@@ -1,0 +1,28 @@
+[
+  {
+    "Date": "2026-05-01T00:00:00",
+    "TotalSales": 1250.75,
+    "Subtotal": 1100.10,
+    "TotalDiscounts": 15.00,
+    "TotalCityTax": 11.00,
+    "TotalStateTax": 115.51,
+    "CashPayments": 400.00,
+    "CreditCardPayments": 350.25,
+    "DebitCardPayments": 200.00,
+    "CheckPayments": 50.00,
+    "AthMovilPayments": 100.50
+  },
+  {
+    "Date": "2026-05-02T00:00:00",
+    "TotalSales": 980.335,
+    "Subtotal": 860.205,
+    "TotalDiscounts": 0,
+    "TotalCityTax": "8.60",
+    "TotalStateTax": 90.32,
+    "CashPayments": 300.10,
+    "CreditCardPayments": 280.00,
+    "DebitCardPayments": 199.90,
+    "CheckPayments": 0,
+    "AthMovilPayments": 79.13
+  }
+]

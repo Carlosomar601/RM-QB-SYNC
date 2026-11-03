@@ -1,0 +1,38 @@
+{
+  "range_page_1": {
+    "success": true,
+    "page": 1,
+    "total_pages": 2,
+    "data": [
+      {"invoice_number": "F-100", "invoice_date": "2026-05-01", "invoice_total": 150.00, "credit_sale": true,
+       "customer_name": "Colmado Ramos", "status": "Open", "remaining_balance": 150.00, "payments": []},
+      {"invoice_number": "F-101", "invoice_date": "2026-05-02", "invoice_total": 80.00, "credit_sale": false,
+       "customer_name": "Contado", "status": "Paid", "payments": [{"posting_date": "2026-05-02", "amount": 80.00}]}
+    ]
+  },
+  "range_page_2": {
+    "success": true,
+    "page": 2,
+    "total_pages": 2,
+    "data": [
+      {"invoice_number": "F-102", "invoice_date": "2026-05-02", "invoice_total": 45.50, "credit_sale": true,
+       "customer_name": "Farmacia Luz", "status": "Open", "remaining_balance": 45.50, "payments": []}
+    ]
+  },
+  "lookback_page_1": {
+    "success": true,
+    "page": 1,
+    "total_pages": 1,
+    "data": [
+      {"invoice_number": "F-050", "invoice_date": "2026-04-10", "invoice_total": 300.00, "credit_sale": true,
+       "customer_name": "Colmado Ramos", "status": "Partial", "remaining_balance": 100.00,
+       "payments": [
+         {"posting_date": "2026-04-20", "amount": 100.00},
+         {"posting_date": "2026-05-01", "amount": 60.00},
+         {"posting_date": "2026-05-02", "amount": 40.00}
+       ]},
+      {"invoice_number": "F-100", "invoice_date": "2026-05-01", "invoice_total": 150.00, "credit_sale": true,
+       "customer_name": "Colmado Ramos", "status": "Open", "payments": [{"posting_date": "2026-05-03", "amount": 25.00}]}
+    ]
+  }
+}
