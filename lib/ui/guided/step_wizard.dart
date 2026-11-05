@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app/tokens.dart';
+
 /// One step of a [StepWizard].
 class WizardStep {
   const WizardStep({
@@ -12,6 +14,7 @@ class WizardStep {
     this.validate,
     this.optional = false,
     this.nextLabel,
+    this.blockedReason,
   });
 
   final String title;
@@ -34,6 +37,10 @@ class WizardStep {
 
   /// Overrides the "Siguiente" label for this step.
   final String? nextLabel;
+
+  /// When set, the step is shown as blocked (lock icon) in the progress bar
+  /// and this reason is given as its tooltip, e.g. "Primero conecte QuickBooks".
+  final String? blockedReason;
 }
 
 /// Sequential, validated workflow with progress, Back/Next/Complete and
@@ -72,6 +79,10 @@ class StepWizardState extends State<StepWizard> {
   List<String> _problems = const [];
   bool _working = false;
 
+  /// The current step failed validation (shown as an error in the stepper
+  /// until it validates or the user moves).
+  bool _failed = false;
+
   int get index => _index;
 
   void goTo(int i) {
@@ -79,6 +90,7 @@ class StepWizardState extends State<StepWizard> {
     setState(() {
       _index = i;
       _problems = const [];
+      _failed = false;
     });
     widget.onStepChanged?.call(i);
   }
@@ -86,7 +98,10 @@ class StepWizardState extends State<StepWizard> {
   bool _validateCurrent() {
     final v = widget.steps[_index].validate;
     final problems = v == null ? const <String>[] : v();
-    setState(() => _problems = problems);
+    setState(() {
+      _problems = problems;
+      _failed = problems.isNotEmpty;
+    });
     return problems.isEmpty;
   }
 
@@ -124,7 +139,7 @@ class StepWizardState extends State<StepWizard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Progress(steps: steps, index: _index, onTap: (i) {
+            _Progress(steps: steps, index: _index, failed: _failed, onTap: (i) {
               if (i < _index) goTo(i); // only allow jumping back
             }),
             const SizedBox(height: 16),
@@ -148,8 +163,9 @@ class StepWizardState extends State<StepWizard> {
                           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             CircleAvatar(
                                 radius: 10,
-                                backgroundColor: cs.primaryContainer,
-                                child: Text('${i + 1}', style: TextStyle(fontSize: 11, color: cs.onPrimaryContainer))),
+                                backgroundColor: context.rm.infoBg,
+                                child: Text('${i + 1}',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.rm.infoText))),
                             const SizedBox(width: 8),
                             Expanded(child: Text(step.instructions[i])),
                           ]),
@@ -160,11 +176,11 @@ class StepWizardState extends State<StepWizard> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: cs.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(8),
+                          color: context.rm.surfaceGuide,
+                          borderRadius: BorderRadius.circular(RmRadius.control),
                         ),
                         child: Row(children: [
-                          Icon(Icons.tips_and_updates_outlined, size: 18, color: cs.primary),
+                          Icon(Icons.tips_and_updates_outlined, size: 18, color: context.rm.infoIcon),
                           const SizedBox(width: 8),
                           Expanded(child: Text(step.example!, style: t.bodyMedium)),
                         ]),
@@ -195,14 +211,18 @@ class StepWizardState extends State<StepWizard> {
                         liveRegion: true,
                         child: Container(
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: cs.errorContainer, borderRadius: BorderRadius.circular(8)),
+                          decoration: BoxDecoration(
+                            color: context.rm.dangerBg,
+                            borderRadius: BorderRadius.circular(RmRadius.control),
+                            border: Border.all(color: context.rm.dangerIcon.withValues(alpha: 0.35)),
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Antes de continuar, complete lo siguiente:',
-                                  style: TextStyle(color: cs.onErrorContainer, fontWeight: FontWeight.w600)),
+                                  style: TextStyle(color: context.rm.dangerText, fontWeight: FontWeight.w600)),
                               for (final p in _problems)
-                                Text('• $p', style: TextStyle(color: cs.onErrorContainer)),
+                                Text('• $p', style: TextStyle(color: context.rm.dangerText)),
                             ],
                           ),
                         ),
@@ -246,44 +266,134 @@ class StepWizardState extends State<StepWizard> {
   }
 }
 
+/// Coherent progress stepper: completed = check, current = filled number,
+/// upcoming = outlined number (subdued but readable). Completed steps can be
+/// revisited by clicking them.
 class _Progress extends StatelessWidget {
-  const _Progress({required this.steps, required this.index, required this.onTap});
+  const _Progress({required this.steps, required this.index, required this.failed, required this.onTap});
 
   final List<WizardStep> steps;
   final int index;
+  final bool failed;
   final void Function(int) onTap;
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Semantics(
       label: 'Progreso: paso ${index + 1} de ${steps.length}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LinearProgressIndicator(value: (index + 1) / steps.length, minHeight: 6, borderRadius: BorderRadius.circular(3)),
-          const SizedBox(height: 10),
+          LinearProgressIndicator(value: (index + 1) / steps.length, minHeight: 4, borderRadius: BorderRadius.circular(2)),
+          const SizedBox(height: 12),
           Wrap(
-            spacing: 6,
-            runSpacing: 6,
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              for (var i = 0; i < steps.length; i++)
-                InputChip(
-                  avatar: Icon(
-                    i < index ? Icons.check_circle : (i == index ? Icons.radio_button_checked : Icons.radio_button_unchecked),
-                    size: 18,
-                    color: i <= index ? cs.primary : cs.outline,
-                  ),
-                  label: Text('${i + 1}. ${steps[i].title}${steps[i].optional ? ' (opcional)' : ''}'),
-                  selected: i == index,
-                  showCheckmark: false,
-                  onPressed: i < index ? () => onTap(i) : null,
-                  tooltip: i < index ? 'Volver a este paso' : null,
+              for (var i = 0; i < steps.length; i++) ...[
+                _StepItem(
+                  number: i + 1,
+                  title: steps[i].title,
+                  optional: steps[i].optional,
+                  state: switch (i) {
+                    _ when i < index => _StepState.done,
+                    _ when i == index => failed ? _StepState.error : _StepState.current,
+                    _ when steps[i].blockedReason != null => _StepState.blocked,
+                    _ => _StepState.upcoming,
+                  },
+                  reason: i > index ? steps[i].blockedReason : null,
+                  onTap: i < index ? () => onTap(i) : null,
                 ),
+              ],
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+/// done = check, current = filled number, error = current step with problems,
+/// upcoming = outlined number, blocked = lock with a reason tooltip.
+enum _StepState { done, current, error, upcoming, blocked }
+
+class _StepItem extends StatelessWidget {
+  const _StepItem({
+    required this.number,
+    required this.title,
+    required this.optional,
+    required this.state,
+    this.reason,
+    this.onTap,
+  });
+
+  final String? reason;
+
+  final int number;
+  final String title;
+  final bool optional;
+  final _StepState state;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final rm = context.rm;
+    final t = Theme.of(context).textTheme;
+    // Pills as in the visual guide: current = filled Primario, done = Éxito,
+    // error = Peligro, upcoming = outlined, blocked = grey with a lock.
+    final (Color bg, Color fg, Color border, FontWeight weight) = switch (state) {
+      _StepState.done => (rm.successBg, rm.successText, rm.successIcon.withValues(alpha: 0.45), FontWeight.w600),
+      _StepState.current => (rm.interactive, rm.onInteractive, rm.interactive, FontWeight.w600),
+      _StepState.error => (rm.dangerBg, rm.dangerText, rm.dangerIcon, FontWeight.w600),
+      _StepState.upcoming => (rm.surface, rm.textSecondary, rm.border, FontWeight.w500),
+      _StepState.blocked => (rm.surfaceAlt, rm.textSecondary, rm.border, FontWeight.w500),
+    };
+    final stateLabel = switch (state) {
+      _StepState.done => 'completado',
+      _StepState.current => 'actual',
+      _StepState.error => 'actual, con datos por corregir',
+      _StepState.upcoming => 'pendiente',
+      _StepState.blocked => 'bloqueado${reason == null ? '' : ': $reason'}',
+    };
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(RmRadius.control),
+        border: Border.all(color: border),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(
+          switch (state) {
+            _StepState.done => Icons.check_circle,
+            _StepState.current => Icons.radio_button_checked,
+            _StepState.error => Icons.error,
+            _StepState.blocked => Icons.lock_outline,
+            _StepState.upcoming => Icons.radio_button_unchecked,
+          },
+          size: 16,
+          color: state == _StepState.done ? rm.successIcon : fg,
+        ),
+        const SizedBox(width: 8),
+        Text('$number. $title${optional ? ' (opcional)' : ''}',
+            style: t.bodyMedium?.copyWith(color: fg, fontWeight: weight)),
+      ]),
+    );
+    return Semantics(
+      button: onTap != null,
+      label: 'Paso $number, $title, $stateLabel',
+      excludeSemantics: true,
+      child: onTap == null
+          ? (reason == null ? content : Tooltip(message: reason!, child: content))
+          : Tooltip(
+              message: 'Volver a este paso',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(RmRadius.control),
+                onTap: onTap,
+                child: content,
+              ),
+            ),
     );
   }
 }

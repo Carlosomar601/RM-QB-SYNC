@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/tokens.dart';
+
 /// Confirmation for consequential or irreversible actions.
 Future<bool> confirmAction(
   BuildContext context, {
@@ -13,10 +15,10 @@ Future<bool> confirmAction(
   final r = await showDialog<bool>(
     context: context,
     builder: (ctx) {
-      final cs = Theme.of(ctx).colorScheme;
+      final rm = ctx.rm;
       return AlertDialog(
         icon: Icon(destructive ? Icons.warning_amber_rounded : Icons.help_outline,
-            color: destructive ? cs.error : cs.primary),
+            color: destructive ? rm.dangerIcon : rm.infoIcon),
         title: Text(title),
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
@@ -43,7 +45,14 @@ Future<bool> confirmAction(
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(cancelLabel)),
           FilledButton(
             autofocus: true,
-            style: destructive ? FilledButton.styleFrom(backgroundColor: cs.error, foregroundColor: cs.onError) : null,
+            style: destructive
+                ? ButtonStyle(
+                    backgroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.hovered)
+                        ? Color.lerp(rm.dangerIcon, rm.textPrimary, 0.12)
+                        : rm.dangerIcon),
+                    foregroundColor: WidgetStatePropertyAll(Theme.of(ctx).colorScheme.onError),
+                  )
+                : null,
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(confirmLabel),
           ),
@@ -55,12 +64,19 @@ Future<bool> confirmAction(
 }
 
 void showSnack(BuildContext context, String message, {bool error = false}) {
-  final cs = Theme.of(context).colorScheme;
+  final rm = context.rm;
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
-      content: Text(message),
-      backgroundColor: error ? cs.error : null,
+      content: error
+          ? Row(children: [
+              Icon(Icons.error_outline, color: rm.dangerText, size: 20),
+              const SizedBox(width: 10),
+              Expanded(child: Text(message, style: TextStyle(color: rm.dangerText))),
+            ])
+          : Text(message),
+      backgroundColor: error ? rm.dangerBg : null,
+      closeIconColor: error ? rm.dangerText : null,
       behavior: SnackBarBehavior.floating,
       showCloseIcon: true,
       duration: Duration(seconds: error ? 8 : 4),

@@ -345,7 +345,7 @@ class PosApiFormState extends ConsumerState<PosApiForm> {
             GuidanceBanner(
               kind: GuidanceKind.success,
               title: 'Cambios aplicados',
-              message: 'Desde ahora RMQBsync usa $_applied. No necesita reiniciar.',
+              message: 'Desde ahora RM Ledger Sync usa $_applied. No necesita reiniciar.',
             ),
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.end, children: [

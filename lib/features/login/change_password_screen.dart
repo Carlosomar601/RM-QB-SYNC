@@ -67,7 +67,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
         title: 'Cambiar contraseña',
         purpose: forced
             ? 'Por seguridad debe reemplazar la contraseña temporal antes de continuar.'
-            : 'Cambie la contraseña de su usuario de RMQBsync.',
+            : 'Cambie la contraseña de su usuario de RM Ledger Sync.',
         nextHint: forced ? 'Después le guiaremos para configurar la aplicación.' : null,
       ),
       if (_done)

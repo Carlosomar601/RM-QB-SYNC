@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/tokens.dart';
+
 /// Small ⓘ icon with a tooltip; also announced by screen readers.
 class HelpTip extends StatelessWidget {
   const HelpTip(this.message, {super.key, this.size = 18});
@@ -20,7 +22,7 @@ class HelpTip extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 360),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Icon(Icons.info_outline, size: size, color: Theme.of(context).colorScheme.primary),
+          child: Icon(Icons.help_outline, size: size, color: context.rm.infoIcon),
         ),
       ),
     );
@@ -37,7 +39,7 @@ class FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final rm = context.rm;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -45,7 +47,7 @@ class FieldLabel extends StatelessWidget {
         if (required)
           Semantics(
             label: 'obligatorio',
-            child: Text(' *', style: TextStyle(color: cs.error, fontWeight: FontWeight.bold)),
+            child: Text(' *', style: TextStyle(color: rm.dangerText, fontWeight: FontWeight.w600)),
           ),
         if (help != null) HelpTip(help!, size: 16),
       ],

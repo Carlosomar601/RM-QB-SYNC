@@ -3,9 +3,12 @@
 library;
 
 export 'completion_summary.dart';
+export 'components.dart';
 export 'confirm_dialog.dart';
 export 'guidance_banner.dart';
 export 'help_tip.dart';
 export 'screen_header.dart';
 export 'section_card.dart';
+export 'status_chip.dart';
 export 'step_wizard.dart';
+export '../../app/tokens.dart';

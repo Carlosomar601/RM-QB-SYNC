@@ -11,6 +11,8 @@ import '../../services/service_providers.dart';
 import '../../services/sync_pipeline.dart';
 import '../../ui/guided/guided.dart';
 import '../help/help_content.dart';
+import '../history/historial_screen.dart';
+import '../onboarding/tour.dart';
 import '../preview/vista_previa_screen.dart';
 import 'schedule_editor.dart';
 
@@ -26,16 +28,21 @@ class SincronizacionesScreen extends ConsumerWidget {
           nextHint: 'Si es la primera vez, revise antes en Vista Previa.',
         ),
         SectionCard(
-          title: 'Sincronizar ahora',
+          title: 'Sincronización manual',
           icon: Icons.play_circle_outline,
-          help: 'Envía directamente sin vista previa. Para revisar antes, use Vista Previa.',
+          help: 'Envía un rango a QuickBooks cuando usted lo indique. Antes de enviar se valida el mapeo, '
+              'que el asiento esté balanceado y que el rango no se haya enviado antes.',
           child: _SyncNow(),
         ),
-        SectionCard(
-          title: 'Programación automática',
-          icon: Icons.schedule,
-          help: 'La aplicación debe estar abierta (puede estar minimizada en la bandeja).',
-          child: ScheduleWizard(),
+        TourTarget(
+          id: 'sync:schedule',
+          child: SectionCard(
+            title: 'Sincronización automática',
+            icon: Icons.schedule,
+            help: 'Permite enviar asientos sin intervención manual según el horario configurado. '
+                'La aplicación debe estar abierta (puede estar minimizada en la bandeja).',
+            child: ScheduleWizard(),
+          ),
         ),
       ]);
 }
@@ -86,16 +93,24 @@ class _SyncNowState extends ConsumerState<_SyncNow> {
     final presets = rangePresets(ref.read(clockProvider)());
     final r = _result;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const Text('1. Elija el rango.  2. Presione "Sincronizar ahora".'),
-      const SizedBox(height: 8),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        for (var i = 0; i < presets.length; i++)
-          ChoiceChip(
-            label: Text('${presets[i].$1} (${Dates.dmy(presets[i].$2)}${presets[i].$2 == presets[i].$3 ? '' : ' – ${Dates.dmy(presets[i].$3)}'})'),
-            selected: _preset == i,
-            onSelected: (_) => setState(() => _preset = i),
-          ),
+      const _Steps([
+        'Seleccione el rango de fechas.',
+        'Revise el asiento generado (recomendado: "Revisar primero en Vista Previa").',
+        'Confirme el envío a QuickBooks.',
       ]),
+      const SizedBox(height: 12),
+      TourTarget(
+        id: 'sync:presets',
+        child: Wrap(spacing: 8, runSpacing: 8, children: [
+          for (var i = 0; i < presets.length; i++)
+            ChoiceChip(
+              label: Text('${presets[i].$1} (${Dates.dmy(presets[i].$2)}'
+                  '${presets[i].$2 == presets[i].$3 ? '' : ' – ${Dates.dmy(presets[i].$3)}'})'),
+              selected: _preset == i,
+              onSelected: (_) => setState(() => _preset = i),
+            ),
+        ]),
+      ),
       const SizedBox(height: 12),
       if (r != null)
         GuidanceBanner(
@@ -104,8 +119,14 @@ class _SyncNowState extends ConsumerState<_SyncNow> {
             SyncStatus.skipped => GuidanceKind.warning,
             _ => GuidanceKind.error,
           },
-          title: r.status == SyncStatus.success ? 'Enviado a QuickBooks' : (r.status == SyncStatus.skipped ? 'Omitido' : 'Falló'),
+          title: switch (r.status) {
+            SyncStatus.success => 'Sincronización exitosa: QuickBooks aceptó el asiento',
+            SyncStatus.skipped => 'Sincronización omitida: el rango ya se había enviado',
+            _ => 'Sincronización fallida: no se creó ningún asiento',
+          },
           message: r.message,
+          secondaryLabel: r.status == SyncStatus.failed ? 'Ver Historial' : null,
+          onSecondary: r.status == SyncStatus.failed ? () => context.go(Routes.historial) : null,
           actionLabel: r.status == SyncStatus.skipped
               ? 'Sincronizar de todas formas'
               : (r.status == SyncStatus.failed ? 'Revisar en Vista Previa' : 'Ver Historial'),
@@ -116,21 +137,75 @@ class _SyncNowState extends ConsumerState<_SyncNow> {
                       '${Routes.vistaPrevia}?desde=${Dates.iso(presets[_preset].$2)}&hasta=${Dates.iso(presets[_preset].$3)}')
                   : () => context.go(Routes.historial),
         ),
-      Wrap(spacing: 8, alignment: WrapAlignment.end, children: [
-        OutlinedButton.icon(
-          onPressed: () => context.go(
-              '${Routes.vistaPrevia}?desde=${Dates.iso(presets[_preset].$2)}&hasta=${Dates.iso(presets[_preset].$3)}'),
-          icon: const Icon(Icons.preview),
-          label: const Text('Revisar primero en Vista Previa'),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TourTarget(
+          id: 'sync:actions',
+          child: Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.end, children: [
+            OutlinedButton.icon(
+              onPressed: () => context.go(
+                  '${Routes.vistaPrevia}?desde=${Dates.iso(presets[_preset].$2)}&hasta=${Dates.iso(presets[_preset].$3)}'),
+              icon: const Icon(Icons.find_in_page_outlined),
+              label: const Text('Revisar primero en Vista Previa'),
+            ),
+            FilledButton.icon(
+              onPressed: _busy ? null : _run,
+              icon: _busy
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.sync),
+              label: Text(_busy ? 'Enviando…' : 'Sincronizar ahora'),
+            ),
+          ]),
         ),
-        FilledButton.icon(
-          onPressed: _busy ? null : _run,
-          icon: _busy
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.sync),
-          label: const Text('Sincronizar ahora'),
+      ),
+    ]);
+  }
+}
+
+/// Numbered instructions (guided pattern).
+class _Steps extends StatelessWidget {
+  const _Steps(this.items);
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final rm = context.rm;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (var i = 0; i < items.length; i++)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            CircleAvatar(
+              radius: 10,
+              backgroundColor: rm.infoBg,
+              child: Text('${i + 1}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: rm.infoText)),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(items[i])),
+          ]),
         ),
-      ]),
+    ]);
+  }
+}
+
+/// Result of the latest scheduled run (status + link to its detail).
+class _LastScheduledRun extends ConsumerWidget {
+  const _LastScheduledRun();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final r = ref.watch(syncHealthProvider).value?.lastScheduled;
+    final t = Theme.of(context).textTheme;
+    if (r == null) {
+      return Text('Resultado de la última ejecución: todavía no se ha ejecutado.', style: t.bodyMedium);
+    }
+    return Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+      Text('Resultado de la última ejecución (${Dates.dmyHm(r.ranAt)}):', style: t.bodyMedium),
+      SyncStatusChip(SyncStatus.parse(r.status)),
+      TextButton(
+        onPressed: () => showHistoryDetail(context, r),
+        child: Text(SyncStatus.parse(r.status) == SyncStatus.failed ? 'Ver error' : 'Ver detalle'),
+      ),
     ]);
   }
 }
@@ -239,16 +314,47 @@ class _ScheduleWizardState extends ConsumerState<ScheduleWizard> {
               kind: GuidanceKind.info,
               title: 'No hay programación',
               message: 'Programe un envío diario para no tener que hacerlo a mano.')
-        else
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(cur.enabled ? Icons.alarm_on : Icons.alarm_off,
-                color: cur.enabled ? const Color(0xFF1B7F3B) : Theme.of(context).colorScheme.outline),
-            title: Text(cur.description),
-            subtitle: Text('${cur.enabled ? 'Activa' : 'Desactivada'}'
-                '${cur.nextRunAt != null ? ' · Próxima: ${Dates.dmyHm(cur.nextRunAt!)}' : ''}'
-                '${cur.lastRunAt != null ? ' · Última: ${Dates.dmyHm(cur.lastRunAt!)}' : ''}'),
+        else ...[
+          // Active schedule reads as a green "Éxito" strip (visual guide).
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: cur.enabled ? context.rm.successBg : context.rm.surfaceAlt,
+              borderRadius: BorderRadius.circular(RmRadius.control),
+              border: Border.all(color: cur.enabled ? context.rm.successIcon.withValues(alpha: 0.45) : context.rm.border),
+            ),
+            child: TextButtonTheme(
+              data: TextButtonThemeData(
+                style: Theme.of(context).textButtonTheme.style?.copyWith(
+                      foregroundColor: WidgetStatePropertyAll(cur.enabled ? context.rm.successText : context.rm.link),
+                    ),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(cur.enabled ? Icons.check_circle : Icons.alarm_off,
+                color: cur.enabled ? context.rm.successIcon : context.rm.textSecondary, size: 26),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  Text(cur.description, style: Theme.of(context).textTheme.titleSmall),
+                  StatusChip(
+                    label: cur.enabled ? 'Activa' : 'Desactivada',
+                    tone: cur.enabled ? RmTone.success : RmTone.neutral,
+                    icon: cur.enabled ? Icons.alarm_on : Icons.alarm_off,
+                  ),
+                ]),
+                const SizedBox(height: 4),
+                Text('Próxima ejecución: ${cur.enabled && cur.nextRunAt != null ? Dates.dmyHm(cur.nextRunAt!) : '—'}'
+                    '  ·  Ejecución anterior: ${cur.lastRunAt != null ? Dates.dmyHm(cur.lastRunAt!) : 'nunca'}'),
+                const SizedBox(height: 4),
+                const _LastScheduledRun(),
+              ]),
+            ),
+          ]),
+            ),
           ),
+          const SizedBox(height: 12),
+        ],
         if (isAdmin)
           Align(
             alignment: Alignment.centerRight,

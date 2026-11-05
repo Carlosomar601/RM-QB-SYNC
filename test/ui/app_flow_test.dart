@@ -147,6 +147,15 @@ void main() {
     await settle(tester);
     expect(find.text('Cambios aplicados'), findsOneWidget);
     expect(t.container.read(posDioProvider)?.options.baseUrl, 'http://192.168.100.175:8180');
+
+    // "Guíame" guides the current screen (Configuración), not the global tour.
+    await tester.tap(find.text('Guíame'));
+    await settle(tester);
+    expect(find.text('Guía 1 de 4'), findsOneWidget);
+    expect(find.text('QuickBooks Online'), findsWidgets);
+    await tester.tap(find.text('Cerrar').last);
+    await settle(tester);
+    expect(find.textContaining('Guía '), findsNothing);
   });
 
   testWidgets('onboarding tour: skip persists, restart shows it again', (tester) async {

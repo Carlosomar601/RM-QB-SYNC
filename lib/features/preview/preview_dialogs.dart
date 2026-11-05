@@ -89,7 +89,7 @@ class _DiagnosticDialogState extends ConsumerState<_DiagnosticDialog> {
                           DataCell(Text(d.error != null ? 'Error' : _m(d.difference),
                               style: TextStyle(
                                   fontWeight: FontWeight.w600,
-                                  color: d.isBalanced ? null : Theme.of(context).colorScheme.error))),
+                                  color: d.isBalanced ? null : context.rm.dangerText))),
                           DataCell(Text(_m(d.totalDiscounts))),
                           DataCell(Text(_m(d.crossDayCollections))),
                           DataCell(Text(_m(d.unexplained))),

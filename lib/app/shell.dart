@@ -7,7 +7,10 @@ import '../features/help/help_content.dart';
 import '../features/help/help_panel.dart';
 import '../features/onboarding/tour.dart';
 import '../services/service_providers.dart';
+import '../core/constants.dart';
+import '../ui/brand.dart';
 import '../ui/guided/guided.dart';
+import 'theme_mode.dart';
 
 class NavItem {
   const NavItem(this.route, this.label, this.icon, this.selectedIcon, {this.adminOnly = false});
@@ -18,18 +21,21 @@ class NavItem {
   final bool adminOnly;
 }
 
-/// Sidebar order from the spec.
+/// Sidebar order from the spec. One outline icon family (Material outlined,
+/// mapped to the spec's meanings: layout-dashboard, refresh-cw, chart-column,
+/// file-search, network, settings, history, clipboard-check, users,
+/// circle-help). Selection is shown by the indicator tint, not a filled glyph.
 const navItems = <NavItem>[
-  NavItem(Routes.dashboard, 'Inicio', Icons.dashboard_outlined, Icons.dashboard),
-  NavItem(Routes.sincronizaciones, 'Sincronizaciones', Icons.sync_outlined, Icons.sync),
-  NavItem(Routes.reportes, 'Reportes', Icons.bar_chart_outlined, Icons.bar_chart),
-  NavItem(Routes.vistaPrevia, 'Vista Previa', Icons.preview_outlined, Icons.preview),
-  NavItem(Routes.mapeo, 'Mapeo de Cuentas', Icons.account_tree_outlined, Icons.account_tree),
-  NavItem(Routes.configuracion, 'Configuración', Icons.settings_outlined, Icons.settings),
+  NavItem(Routes.dashboard, 'Inicio', Icons.dashboard_outlined, Icons.dashboard_outlined),
+  NavItem(Routes.sincronizaciones, 'Sincronizaciones', Icons.sync, Icons.sync),
+  NavItem(Routes.reportes, 'Reportes', Icons.bar_chart, Icons.bar_chart),
+  NavItem(Routes.vistaPrevia, 'Vista Previa', Icons.find_in_page_outlined, Icons.find_in_page_outlined),
+  NavItem(Routes.mapeo, 'Mapeo de Cuentas', Icons.lan_outlined, Icons.lan_outlined),
+  NavItem(Routes.configuracion, 'Configuración', Icons.settings_outlined, Icons.settings_outlined),
   NavItem(Routes.historial, 'Historial', Icons.history, Icons.history),
-  NavItem(Routes.auditoria, 'Auditoría', Icons.fact_check_outlined, Icons.fact_check),
-  NavItem(Routes.usuarios, 'Usuarios', Icons.group_outlined, Icons.group, adminOnly: true),
-  NavItem(Routes.ayuda, 'Ayuda', Icons.help_outline, Icons.help),
+  NavItem(Routes.auditoria, 'Auditoría', Icons.assignment_turned_in_outlined, Icons.assignment_turned_in_outlined),
+  NavItem(Routes.usuarios, 'Usuarios', Icons.group_outlined, Icons.group_outlined, adminOnly: true),
+  NavItem(Routes.ayuda, 'Ayuda', Icons.help_outline, Icons.help_outline),
 ];
 
 class OpenHelpIntent extends Intent {
@@ -73,22 +79,28 @@ class _AppShellState extends ConsumerState<AppShell> {
                   key: _scaffoldKey,
                   endDrawer: HelpPanel(location: widget.location),
                   appBar: AppBar(
+                    // Brand lives in the sidebar (and the native title bar);
+                    // the app bar names where the user is.
                     title: Row(children: [
-                      Image.asset('assets/icons/app_icon.png', width: 26, height: 26, semanticLabel: 'RMQBsync'),
-                      const SizedBox(width: 10),
-                      Flexible(child: Text('RMQBsync · ${current.label}', overflow: TextOverflow.ellipsis)),
+                      if (compact) ...[const BrandIcon(size: 24), const SizedBox(width: 10)],
+                      Flexible(
+                        child: Semantics(
+                          header: true,
+                          child: Text(current.label, overflow: TextOverflow.ellipsis),
+                        ),
+                      ),
                     ]),
                     actions: [
                       TourTarget(
                         id: 'appbar:guide',
                         child: compact
                             ? IconButton(
-                                tooltip: 'Guíame (recorrido guiado)',
+                                tooltip: 'Guíame: cómo usar esta pantalla',
                                 icon: const Icon(Icons.explore_outlined),
-                                onPressed: () => ref.read(tourProvider.notifier).resume(),
+                                onPressed: () => ref.read(tourProvider.notifier).guide(widget.location),
                               )
                             : TextButton.icon(
-                                onPressed: () => ref.read(tourProvider.notifier).resume(),
+                                onPressed: () => ref.read(tourProvider.notifier).guide(widget.location),
                                 icon: const Icon(Icons.explore_outlined),
                                 label: const Text('Guíame'),
                               ),
@@ -101,6 +113,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                           onPressed: _openHelp,
                         ),
                       ),
+                      const TourTarget(id: 'appbar:theme', child: ThemeModeButton()),
                       _UserMenu(),
                       const SizedBox(width: 8),
                     ],
@@ -124,6 +137,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                           extended: wide,
                           minExtendedWidth: 220,
                           labelType: wide ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+                          leading: _SidebarBrand(extended: wide),
                           selectedIndex: selected,
                           onDestinationSelected: (i) => context.go(items[i].route),
                           destinations: [
@@ -135,7 +149,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                               ),
                           ],
                         ),
-                        const VerticalDivider(width: 1),
+                        VerticalDivider(width: 1, color: context.rm.border),
                       ],
                       Expanded(child: widget.child),
                     ],
@@ -147,6 +161,36 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Compact branding at the top of the sidebar.
+class _SidebarBrand extends StatelessWidget {
+  const _SidebarBrand({required this.extended});
+  final bool extended;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = const BrandIcon(size: 30);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      child: extended
+          ? SizedBox(
+              width: 196,
+              child: Row(children: [
+                icon,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(AppInfo.displayName,
+                        style: Theme.of(context).textTheme.titleSmall, overflow: TextOverflow.ellipsis),
+                    Text('Retail Manager', style: Theme.of(context).textTheme.bodySmall),
+                  ]),
+                ),
+              ]),
+            )
+          : Tooltip(message: AppInfo.displayName, child: icon),
     );
   }
 }
@@ -164,7 +208,14 @@ class _CompactDrawer extends StatelessWidget {
           context.go(items[i].route);
         },
         children: [
-          const Padding(padding: EdgeInsets.all(16), child: Text('RMQBsync')),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              const BrandIcon(size: 28),
+              const SizedBox(width: 10),
+              Text(AppInfo.displayName, style: Theme.of(context).textTheme.titleMedium),
+            ]),
+          ),
           for (final i in items)
             NavigationDrawerDestination(icon: Icon(i.icon), selectedIcon: Icon(i.selectedIcon), label: Text(i.label)),
         ],
@@ -175,20 +226,41 @@ class _UserMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(sessionProvider);
+    final themeMode = ref.watch(themeModeProvider);
     if (user == null) return const SizedBox.shrink();
     return PopupMenuButton<String>(
       tooltip: 'Opciones de usuario',
-      icon: CircleAvatar(radius: 15, child: Text(user.displayName.isEmpty ? '?' : user.displayName[0].toUpperCase())),
+      icon: CircleAvatar(
+          radius: 15,
+          backgroundColor: context.rm.navSelected,
+          foregroundColor: context.rm.textPrimary,
+          child: Text(user.displayName.isEmpty ? '?' : user.displayName[0].toUpperCase())),
       itemBuilder: (_) => [
         PopupMenuItem(
           enabled: false,
           child: Text('${user.displayName} (${user.username})${user.isAdmin ? ' · Administrador' : ''}'),
         ),
         const PopupMenuDivider(),
+        const PopupMenuItem(enabled: false, height: 32, child: Text('Tema de la aplicación')),
+        for (final (mode, label, icon) in const [
+          (ThemeMode.system, 'Automático (igual que Windows)', Icons.brightness_auto_outlined),
+          (ThemeMode.light, 'Claro', Icons.light_mode_outlined),
+          (ThemeMode.dark, 'Oscuro', Icons.dark_mode_outlined),
+        ])
+          CheckedPopupMenuItem(
+            value: 'theme:${mode.name}',
+            checked: themeMode == mode,
+            child: Row(children: [Icon(icon, size: 18), const SizedBox(width: 10), Text(label)]),
+          ),
+        const PopupMenuDivider(),
         const PopupMenuItem(value: 'password', child: ListTile(leading: Icon(Icons.password), title: Text('Cambiar contraseña'))),
         const PopupMenuItem(value: 'logout', child: ListTile(leading: Icon(Icons.logout), title: Text('Cerrar sesión'))),
       ],
       onSelected: (v) async {
+        if (v.startsWith('theme:')) {
+          await ref.read(themeModeProvider.notifier).set(ThemeModeController.parse(v.substring(6)));
+          return;
+        }
         if (v == 'password') context.go(Routes.cambiarContrasena);
         if (v == 'logout') {
           final ok = await confirmAction(context,

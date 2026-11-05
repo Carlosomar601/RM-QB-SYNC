@@ -6,6 +6,7 @@ import '../../data/db/repositories.dart';
 import '../../services/desktop_integration.dart';
 import '../../services/service_providers.dart';
 import '../../ui/guided/guided.dart';
+import '../onboarding/tour.dart';
 import 'pos_api_form.dart';
 import 'qbo_cards.dart';
 
@@ -16,29 +17,39 @@ class ConfiguracionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return const PageBody(children: [
       ScreenHeader(
-        icon: Icons.settings,
+        icon: Icons.settings_outlined,
         title: 'Configuración',
         purpose: 'Conecte QuickBooks Online e indique dónde está la API del POS.',
-        nextHint: 'Cuando todo esté en verde, vaya a Mapeo de Cuentas.',
+        nextHint: 'Cuando QuickBooks y el POS estén conectados y probados, vaya a Mapeo de Cuentas.',
       ),
-      SectionCard(
-        title: 'QuickBooks Online',
-        icon: Icons.cloud_outlined,
-        help: 'La autorización se renueva automáticamente. Dura unos 100 días sin uso.',
-        child: QboConnectionPanel(),
+      TourTarget(
+        id: 'config:qbo',
+        child: SectionCard(
+          title: 'QuickBooks Online',
+          icon: Icons.cloud_outlined,
+          help: 'La autorización se renueva automáticamente. Dura unos 100 días sin uso. '
+              '"Probar conexión" solo consulta el nombre de la compañía; no envía nada.',
+          child: QboConnectionPanel(),
+        ),
       ),
-      SectionCard(
-        title: 'Credenciales de Intuit',
-        icon: Icons.key_outlined,
-        subtitle: 'Identifican a RMQBsync ante Intuit. Se guardan cifradas en Windows.',
-        child: QboCredentialsForm(),
+      TourTarget(
+        id: 'config:creds',
+        child: SectionCard(
+          title: 'Credenciales de Intuit',
+          icon: Icons.key_outlined,
+          subtitle: 'Identifican a RM Ledger Sync ante Intuit. Se guardan cifradas en Windows.',
+          child: QboCredentialsForm(),
+        ),
       ),
-      SectionCard(
-        title: 'Acceso a la API del POS',
-        icon: Icons.point_of_sale,
-        subtitle: 'Dirección del servidor Retail Manager en la red de la tienda. Los cambios se aplican al instante.',
-        help: 'Ejemplo: protocolo http, IP 192.168.100.175, puerto 8180.',
-        child: PosApiForm(),
+      TourTarget(
+        id: 'config:pos',
+        child: SectionCard(
+          title: 'Acceso a la API del POS',
+          icon: Icons.point_of_sale_outlined,
+          subtitle: 'Dirección del servidor Retail Manager en la red de la tienda. Los cambios se aplican al instante.',
+          help: 'Ejemplo: protocolo http, IP 192.168.100.175, puerto 8180.',
+          child: PosApiForm(),
+        ),
       ),
       SectionCard(
         title: 'Aplicación',
@@ -91,7 +102,7 @@ class _AppOptionsState extends ConsumerState<_AppOptions> {
       const ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(Icons.info_outline),
-        title: Text('Cerrar la ventana no detiene RMQBsync'),
+        title: Text('Cerrar la ventana no detiene RM Ledger Sync'),
         subtitle: Text('La aplicación sigue en la bandeja del sistema (junto al reloj). Para salir por completo use '
             'el menú del icono → "Salir".'),
       ),

@@ -83,7 +83,7 @@ abstract final class HelpContent {
     Routes.login: HelpArticle(
       id: 'login',
       title: 'Iniciar sesión',
-      summary: 'Entre con su usuario y contraseña de RMQBsync (no son los de QuickBooks).',
+      summary: 'Entre con su usuario y contraseña de RM Ledger Sync (no son los de QuickBooks).',
       sections: [
         HelpSection('Primer uso', [
           'La primera vez se crea el usuario "admin" con una contraseña temporal. Se muestra en pantalla y '
@@ -104,7 +104,7 @@ abstract final class HelpContent {
     Routes.asistente: HelpArticle(
       id: 'wizard',
       title: 'Asistente de configuración',
-      summary: 'Le guía para dejar RMQBsync listo: POS, QuickBooks, cuentas y programación.',
+      summary: 'Le guía para dejar RM Ledger Sync listo: POS, QuickBooks, cuentas y programación.',
       sections: [
         HelpSection('Qué necesita', [
           'La dirección IP y el puerto del servidor del POS Retail Manager (ej.: 192.168.100.175 y 8180).',
@@ -151,6 +151,14 @@ abstract final class HelpContent {
       id: 'reports',
       title: 'Reportes',
       summary: 'Sección reservada para reportes futuros. Mientras tanto use Historial y Vista Previa.',
+      sections: [
+        HelpSection('Mientras tanto', [
+          'Totales por categoría de cualquier rango: Vista Previa → paso 2 "Revisar".',
+          'Qué se envió a QuickBooks y con qué resultado: Historial.',
+          'Diferencias entre ventas y pagos por día: Vista Previa → "Diagnosticar diferencia".',
+        ]),
+      ],
+      links: [HelpLink('Vista Previa', Routes.vistaPrevia), HelpLink('Historial', Routes.historial)],
     ),
     Routes.vistaPrevia: HelpArticle(
       id: 'preview',
@@ -216,6 +224,12 @@ abstract final class HelpContent {
           'Exitosa: el asiento se creó en QuickBooks (verá su número).',
           'Fallida: no se creó nada; lea el mensaje para saber cómo resolverlo.',
           'Omitida: ya existía un envío exitoso para esas fechas.',
+          'En curso: el envío se está procesando.',
+        ]),
+        HelpSection('Si una falló', [
+          'Use "Ver error": explica qué pasó y ofrece la acción para resolverlo.',
+          'Antes de cada envío se verifica si el rango ya fue aceptado por QuickBooks, así que volver a enviar no duplica.',
+          'Use el buscador y los filtros para encontrar una fecha, un usuario o un estado.',
         ]),
       ],
     ),
@@ -223,6 +237,13 @@ abstract final class HelpContent {
       id: 'audit',
       title: 'Auditoría',
       summary: 'Registro de las últimas 300 acciones: inicios de sesión, cambios de configuración y envíos.',
+      sections: [
+        HelpSection('Cómo leerla', [
+          'Cada fila indica la acción, quién la hizo, cuándo y el detalle.',
+          'El icono indica el resultado: verde exitosa, ámbar omitida, rojo fallida.',
+          'Las contraseñas, secretos y claves nunca se guardan ni se muestran aquí.',
+        ]),
+      ],
     ),
     Routes.usuarios: HelpArticle(
       id: 'users',
@@ -262,7 +283,7 @@ abstract final class HelpContent {
   ];
 
   static const glossary = <GlossaryEntry>[
-    GlossaryEntry('Asiento de diario', 'Registro contable con líneas al Debe y al Haber que deben sumar lo mismo. RMQBsync crea uno por rango de fechas.'),
+    GlossaryEntry('Asiento de diario', 'Registro contable con líneas al Debe y al Haber que deben sumar lo mismo. RM Ledger Sync crea uno por rango de fechas.'),
     GlossaryEntry('Debe / Haber', 'Lados del asiento. Debe = débito (por ejemplo, dinero que entra a caja). Haber = crédito (por ejemplo, ingreso por ventas).'),
     GlossaryEntry('Balanceado', 'El total del Debe es igual al total del Haber (tolerancia de medio centavo).'),
     GlossaryEntry('Categoría del POS', 'Cada total que se lee del POS: Venta neta, IVU municipal, IVU estatal, Efectivo, Tarjetas, ATH Móvil, etc.'),
@@ -355,7 +376,7 @@ abstract final class HelpContent {
         'Configuración → QuickBooks Online.',
         'Presione "Conectar con QuickBooks"; se abrirá el navegador.',
         'Inicie sesión en Intuit, elija la compañía y presione "Conectar".',
-        'Vuelva a RMQBsync: verá el nombre de la compañía conectada.',
+        'Vuelva a RM Ledger Sync: verá el nombre de la compañía conectada.',
       ],
       links: [HelpLink('Ir a Configuración', Routes.configuracion)],
     ),

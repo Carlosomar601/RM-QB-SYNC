@@ -15,6 +15,7 @@ import '../../services/service_providers.dart';
 import '../../services/sync_pipeline.dart';
 import '../../ui/guided/guided.dart';
 import '../help/help_content.dart';
+import '../onboarding/tour.dart';
 import 'preview_dialogs.dart';
 
 /// Quick date range presets.
@@ -120,12 +121,15 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
     final r = _result!;
     final d = r.draft!;
     final dup = force || _allowDuplicate;
+    final setup = ref.read(setupStatusProvider).value;
     final ok = await confirmAction(
       context,
       title: dup ? 'Enviar de todas formas' : 'Enviar a QuickBooks',
-      message: 'Se creará un asiento de diario en QuickBooks. Esta acción no se puede deshacer desde RMQBsync '
+      message: 'Se creará un asiento de diario en QuickBooks. Esta acción no se puede deshacer desde RM Ledger Sync '
           '(tendría que borrarlo en QuickBooks).',
       bullets: [
+        if (setup?.companyName != null)
+          'Compañía: ${setup!.companyName} (${setup.isProduction ? 'Producción' : 'Sandbox de pruebas'})',
         'Rango: ${Dates.dmy(_from)} al ${Dates.dmy(_to)}',
         'Fecha del asiento: ${Dates.dmy(d.txnDate)}',
         'Total: \$${Money.format(d.totalDebit)} (${d.lines.length} líneas)',
@@ -153,7 +157,7 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
     final posCfg = ref.watch(posConfigProvider).value;
     return PageBody(children: [
       const ScreenHeader(
-        icon: Icons.preview,
+        icon: Icons.find_in_page_outlined,
         title: 'Vista Previa',
         purpose: 'Revise el asiento que se enviará a QuickBooks para un rango de fechas.',
         nextHint: 'Paso 1: rango · Paso 2: revisar · Paso 3: confirmar y enviar.',
@@ -208,8 +212,25 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
     );
   }
 
+  /// Why step 3 cannot be reached yet (shown as a blocked step), or null.
+  String? _confirmBlockedReason() {
+    final r = _result;
+    if (_error != null) return 'No se pudo consultar el POS.';
+    if (r == null) return null;
+    final d = r.draft;
+    if (r.missingCategories.isNotEmpty) return 'Faltan cuentas en Mapeo de Cuentas.';
+    if (d != null && !d.hasLines) return 'No hay ventas en este rango.';
+    if (d != null && !d.isBalanced) return 'El asiento no está balanceado.';
+    if (d != null && d.hasMissingEntities) return 'Faltan clientes o suplidores.';
+    return null;
+  }
+
   Widget _wizard() {
     final now = ref.read(clockProvider)();
+    return TourTarget(id: 'preview:wizard', child: _stepWizard(now));
+  }
+
+  Widget _stepWizard(DateTime now) {
     return StepWizard(
       key: ValueKey(_wizardKey),
       completeLabel: _overlapMessage != null && !_allowDuplicate ? 'Revise el aviso de duplicado' : 'Confirmar y Enviar a QuickBooks',
@@ -277,6 +298,7 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
         ),
         WizardStep(
           title: 'Confirmar y enviar',
+          blockedReason: _confirmBlockedReason(),
           explanation: 'Último paso: se creará el asiento en QuickBooks.',
           instructions: const ['Lea el resumen.', 'Presione "Confirmar y Enviar a QuickBooks" y confirme.'],
           validate: () => [
@@ -293,14 +315,19 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
   Widget _reviewStep() {
     if (_error != null) {
       final e = _error!;
+      final serverError = e is PosApiException && (e.statusCode ?? 0) >= 500;
       return GuidanceBanner(
         kind: GuidanceKind.error,
-        title: e is PosNotConfiguredException ? 'La API del POS no está configurada' : 'No se pudo consultar el POS',
+        title: e is PosNotConfiguredException
+            ? 'La API del POS no está configurada'
+            : serverError
+                ? 'El servidor del POS devolvió un error'
+                : 'No se pudo consultar el POS',
         message: '$e',
         actionLabel: 'Reintentar',
         onAction: _load,
-        secondaryLabel: 'Revisar Configuración',
-        onSecondary: () => context.go(Routes.configuracion),
+        secondaryLabel: serverError ? null : 'Revisar Configuración',
+        onSecondary: serverError ? null : () => context.go(Routes.configuracion),
       );
     }
     final r = _result;
@@ -377,20 +404,23 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
             DataRow(cells: [
               DataCell(Text(c.group)),
               DataCell(Text(PosCategories.label(c.category))),
-              DataCell(Text(Money.format(c.amount))),
-              DataCell(Text(r.mappings[c.category]?.accountName ??
-                  (Money.toCents(c.amount) == 0 ? '—' : 'SIN CUENTA'))),
+              DataCell(MoneyText(c.amount)),
+              DataCell(r.mappings[c.category]?.accountName != null
+                  ? Text(r.mappings[c.category]!.accountName)
+                  : Money.toCents(c.amount) == 0
+                      ? const Text('—')
+                      : const StatusChip(label: 'Sin cuenta', tone: RmTone.warning)),
             ]),
           DataRow(cells: [
             const DataCell(Text('')),
             const DataCell(Text('Total Ventas', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataCell(Text(Money.format(s.totalByGroup(PosGroups.ventas)), style: const TextStyle(fontWeight: FontWeight.bold))),
+            DataCell(MoneyText(s.totalByGroup(PosGroups.ventas), style: const TextStyle(fontWeight: FontWeight.bold))),
             const DataCell(Text('')),
           ]),
           DataRow(cells: [
             const DataCell(Text('')),
             const DataCell(Text('Total Pagos', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataCell(Text(Money.format(s.totalByGroup(PosGroups.pagos)), style: const TextStyle(fontWeight: FontWeight.bold))),
+            DataCell(MoneyText(s.totalByGroup(PosGroups.pagos), style: const TextStyle(fontWeight: FontWeight.bold))),
             const DataCell(Text('')),
           ]),
         ]),
@@ -400,10 +430,9 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
         Row(children: [
           Text('Asiento de diario', style: t.titleMedium),
           const SizedBox(width: 12),
-          Chip(
-            avatar: Icon(d.isBalanced ? Icons.check_circle : Icons.error,
-                color: d.isBalanced ? const Color(0xFF1B7F3B) : Theme.of(context).colorScheme.error, size: 18),
-            label: Text(d.isBalanced ? 'Balanceado' : 'No balanceado'),
+          StatusChip(
+            label: d.isBalanced ? 'Balanceado' : 'No balanceado',
+            tone: d.isBalanced ? RmTone.success : RmTone.danger,
           ),
         ]),
         Text(d.description, style: t.bodyMedium),
@@ -420,15 +449,19 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
             for (final l in d.lines)
               DataRow(
                 color: l.isMissingRequiredEntity
-                    ? WidgetStatePropertyAll(Theme.of(context).colorScheme.errorContainer)
+                    ? WidgetStatePropertyAll(context.rm.dangerBg)
                     : null,
                 cells: [
                   DataCell(Text(Dates.dmy(d.txnDate))),
-                  DataCell(Text(l.entityName ?? (l.entityType != null ? 'FALTA ${l.entityType!.label.toUpperCase()}' : ''))),
+                  DataCell(l.entityName != null
+                      ? Text(l.entityName!)
+                      : l.entityType != null
+                          ? StatusChip(label: 'Falta ${l.entityType!.label.toLowerCase()}', tone: RmTone.danger)
+                          : const Text('')),
                   DataCell(Text(l.description)),
                   DataCell(Text(l.accountName)),
-                  DataCell(Text(l.debit == 0 ? '' : Money.format(l.debit))),
-                  DataCell(Text(l.credit == 0 ? '' : Money.format(l.credit))),
+                  DataCell(l.debit == 0 ? const Text('') : MoneyText(l.debit, prefix: '')),
+                  DataCell(l.credit == 0 ? const Text('') : MoneyText(l.credit, prefix: '')),
                 ],
               ),
             DataRow(cells: [
@@ -436,8 +469,8 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
               const DataCell(Text('')),
               const DataCell(Text('')),
               const DataCell(Text('Totales', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataCell(Text(Money.format(d.totalDebit), style: const TextStyle(fontWeight: FontWeight.bold))),
-              DataCell(Text(Money.format(d.totalCredit), style: const TextStyle(fontWeight: FontWeight.bold))),
+              DataCell(MoneyText(d.totalDebit, prefix: '', style: const TextStyle(fontWeight: FontWeight.bold))),
+              DataCell(MoneyText(d.totalCredit, prefix: '', style: const TextStyle(fontWeight: FontWeight.bold))),
             ]),
           ]),
         ),
@@ -448,20 +481,59 @@ class _VistaPreviaScreenState extends ConsumerState<VistaPreviaScreen> {
   Widget _confirmStep() {
     final d = _result?.draft;
     if (d == null) return const SizedBox.shrink();
+    final s = _result!.summary;
+    final setup = ref.watch(setupStatusProvider).value;
+    final rm = context.rm;
+    const bold = TextStyle(fontWeight: FontWeight.w600);
+    TableRow row(String k, Widget v) => TableRow(children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 24, bottom: 8),
+            child: Text(k, style: TextStyle(color: rm.textSecondary)),
+          ),
+          Padding(padding: const EdgeInsets.only(bottom: 8), child: v),
+        ]);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Table(columnWidths: const {0: IntrinsicColumnWidth()}, children: [
-        for (final (k, v) in [
-          ('Rango', '${Dates.dmy(_from)} al ${Dates.dmy(_to)}'),
-          ('Fecha del asiento', Dates.dmy(d.txnDate)),
-          ('Nota', d.description),
-          ('Líneas', '${d.lines.length}'),
-          ('Total Debe / Haber', '\$${Money.format(d.totalDebit)} / \$${Money.format(d.totalCredit)}'),
-        ])
-          TableRow(children: [
-            Padding(padding: const EdgeInsets.only(right: 16, bottom: 6), child: Text(k)),
-            Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(v, style: const TextStyle(fontWeight: FontWeight.w600))),
-          ]),
-      ]),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: rm.navSelected,
+          borderRadius: BorderRadius.circular(RmRadius.control),
+          border: Border.all(color: rm.focus.withValues(alpha: 0.35)),
+        ),
+        child: Table(columnWidths: const {0: IntrinsicColumnWidth()}, children: [
+          row(
+            'Compañía de destino',
+            Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              Text(setup?.companyName ?? 'QuickBooks', style: bold),
+              if (setup != null)
+                StatusChip(
+                  label: setup.isProduction ? 'Producción' : 'Sandbox (pruebas)',
+                  tone: setup.isProduction ? RmTone.warning : RmTone.info,
+                  icon: setup.isProduction ? Icons.business_outlined : Icons.science_outlined,
+                ),
+            ]),
+          ),
+          row('Rango', Text('${Dates.dmy(_from)} al ${Dates.dmy(_to)}', style: bold)),
+          row('Fecha del asiento', Text(Dates.dmy(d.txnDate), style: bold)),
+          row('Nota', Text(d.description, style: bold)),
+          row('Líneas', Text('${d.lines.length}', style: bold)),
+          row('Total Ventas (POS)', MoneyText(s.totalByGroup(PosGroups.ventas), align: TextAlign.left, style: bold)),
+          row('Total Pagos (POS)', MoneyText(s.totalByGroup(PosGroups.pagos), align: TextAlign.left, style: bold)),
+          row('Total Debe', MoneyText(d.totalDebit, align: TextAlign.left, style: bold)),
+          row('Total Haber', MoneyText(d.totalCredit, align: TextAlign.left, style: bold)),
+          row(
+            'Validación',
+            Align(
+              alignment: Alignment.centerLeft,
+              child: StatusChip(
+                label: d.canSubmit ? 'Balanceado y mapeado' : 'No se puede enviar',
+                tone: d.canSubmit ? RmTone.success : RmTone.danger,
+              ),
+            ),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 8),
       if (_overlapMessage != null) ...[
         GuidanceBanner(kind: GuidanceKind.warning, title: 'Posible duplicado', message: _overlapMessage),
         CheckboxListTile(

@@ -8,6 +8,8 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app/app.dart';
 import 'app/providers.dart';
+import 'app/theme.dart';
+import 'core/constants.dart';
 import 'core/dates.dart';
 import 'core/sync_rules.dart';
 import 'data/db/app_database.dart';
@@ -44,10 +46,10 @@ Future<void> main(List<String> args) async {
     AppLogger.error('No se pudo migrar la base de datos de la versión anterior', e, st);
     // Never open the legacy EF database as ours (table names collide).
     runApp(_StartupErrorApp(
-      'RMQBsync no pudo preparar su base de datos porque la versión anterior '
+      'RM Ledger Sync no pudo preparar su base de datos porque la versión anterior '
       '(servicio "RMQBsync") la está usando.\n\n'
       'Detenga el servicio anterior (o ejecute el instalador nuevo, que lo elimina) '
-      'y vuelva a abrir RMQBsync.\n\nDetalle: $e',
+      'y vuelva a abrir RM Ledger Sync.\n\nDetalle: $e',
     ));
     return;
   }
@@ -59,7 +61,7 @@ Future<void> main(List<String> args) async {
     secretStoreProvider.overrideWithValue(secrets),
   ]);
 
-  AppLogger.info('RMQBsync iniciado (datos en ${AppPaths.dataDir}).');
+  AppLogger.info('RM Ledger Sync iniciado (datos en ${AppPaths.dataDir}).');
   final seeder = FactorySecretsSeeder(secrets, container.read(settingsRepositoryProvider));
   for (final path in AppPaths.factorySecretsCandidates) {
     await seeder.seedIfNeeded(File(path));
@@ -78,13 +80,13 @@ Future<void> main(List<String> args) async {
     final r = await container
         .read(syncPipelineProvider)
         .runSync(from: today, to: today, trigger: SyncTrigger.manual, user: user);
-    desktop?.setTooltip('RMQBsync – ${r.status.label}: ${r.message}');
+    desktop?.setTooltip('RM Ledger Sync – ${r.status.label}: ${r.message}');
   });
   await desktop.init(startMinimized: args.contains('--minimized'));
 
   container.read(tokenManagerProvider).startProactiveRefresh();
   final scheduler = container.read(schedulerServiceProvider);
-  scheduler.onRun = (r) => desktop?.setTooltip('RMQBsync – última programada: ${r.status.label}');
+  scheduler.onRun = (r) => desktop?.setTooltip('RM Ledger Sync – última programada: ${r.status.label}');
   scheduler.start();
 
   runApp(UncontrolledProviderScope(container: container, child: const RmqbApp()));
@@ -98,7 +100,9 @@ class _StartupErrorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'RMQBsync',
+        title: AppInfo.displayName,
+        theme: buildTheme(Brightness.light),
+        darkTheme: buildTheme(Brightness.dark),
         home: Scaffold(
           body: Center(
             child: Padding(
@@ -106,7 +110,7 @@ class _StartupErrorApp extends StatelessWidget {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 640),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.error_outline, size: 56, color: Colors.red),
+                  Builder(builder: (context) => Icon(Icons.error_outline, size: 56, color: context.rm.dangerIcon)),
                   const SizedBox(height: 16),
                   SelectableText(message, textAlign: TextAlign.center),
                   const SizedBox(height: 24),

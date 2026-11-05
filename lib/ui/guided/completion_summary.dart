@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/tokens.dart';
+
 class SummaryItem {
   const SummaryItem(this.label, this.value);
   final String label;
@@ -33,7 +35,7 @@ class CompletionSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final t = Theme.of(context).textTheme;
-    final color = success ? const Color(0xFF1B7F3B) : cs.error;
+    final tone = context.rm.tone(success ? RmTone.success : RmTone.danger);
     return Semantics(
       liveRegion: true,
       child: Card(
@@ -43,9 +45,9 @@ class CompletionSummary extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Icon(success ? Icons.check_circle : Icons.cancel, color: color, size: 36),
+                Icon(success ? Icons.check_circle_outline : Icons.error_outline, color: tone.icon, size: 32),
                 const SizedBox(width: 12),
-                Expanded(child: Text(title, style: t.headlineSmall?.copyWith(color: color))),
+                Expanded(child: Text(title, style: t.headlineSmall?.copyWith(color: tone.fg))),
               ]),
               if (message != null) ...[const SizedBox(height: 12), SelectableText(message!, style: t.bodyLarge)],
               if (items.isNotEmpty) ...[

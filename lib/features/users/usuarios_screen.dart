@@ -6,6 +6,7 @@ import '../../core/dates.dart';
 import '../../services/auth_service.dart';
 import '../../services/service_providers.dart';
 import '../../ui/guided/guided.dart';
+import '../onboarding/tour.dart';
 
 final usersProvider = FutureProvider<List<AppUser>>((ref) => ref.watch(authServiceProvider).allUsers());
 
@@ -30,47 +31,72 @@ class UsuariosScreen extends ConsumerWidget {
 
     return PageBody(children: [
       ScreenHeader(
-        icon: Icons.group,
+        icon: Icons.group_outlined,
         title: 'Usuarios',
         purpose: 'Cree usuarios, actívelos o desactívelos y restablezca contraseñas.',
         nextHint: 'Entregue la contraseña temporal al usuario; deberá cambiarla al entrar.',
         actions: [
-          FilledButton.icon(
-            onPressed: () => _createUser(context, ref),
-            icon: const Icon(Icons.person_add),
-            label: const Text('Crear usuario'),
+          TourTarget(
+            id: 'usuarios:create',
+            child: FilledButton.icon(
+              onPressed: () => _createUser(context, ref),
+              icon: const Icon(Icons.person_add_outlined),
+              label: const Text('Crear usuario'),
+            ),
           ),
         ],
       ),
       users.when(
         loading: () => const LoadingBox(),
-        error: (e, _) => GuidanceBanner(kind: GuidanceKind.error, title: 'Error', message: '$e'),
+        error: (e, _) => GuidanceBanner(kind: GuidanceKind.error, title: 'No se pudieron leer los usuarios', message: '$e'),
         data: (list) => Card(
+          clipBehavior: Clip.antiAlias,
           child: Column(children: [
             for (final u in list)
               ListTile(
-                leading: CircleAvatar(child: Text(u.displayName.isEmpty ? '?' : u.displayName[0].toUpperCase())),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                leading: CircleAvatar(
+                  backgroundColor: context.rm.navSelected,
+                  foregroundColor: context.rm.textPrimary,
+                  child: Text(u.displayName.isEmpty ? '?' : u.displayName[0].toUpperCase()),
+                ),
                 title: Text('${u.displayName} (${u.username})${u.id == me.id ? ' · usted' : ''}'),
-                subtitle: Text([
-                  if (u.isAdmin) 'Administrador' else 'Usuario',
-                  if (!u.isActive) 'DESACTIVADO',
-                  if (u.mustChangePassword) 'Debe cambiar contraseña',
-                  'Último acceso: ${u.lastLoginAt == null ? 'nunca' : Dates.dmyHm(u.lastLoginAt!)}',
-                ].join(' · ')),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                    StatusChip(
+                      label: u.isAdmin ? 'Administrador' : 'Usuario',
+                      tone: u.isAdmin ? RmTone.info : RmTone.neutral,
+                      icon: u.isAdmin ? Icons.admin_panel_settings_outlined : Icons.person_outline,
+                    ),
+                    StatusChip(
+                      label: u.isActive ? 'Activo' : 'Desactivado',
+                      tone: u.isActive ? RmTone.success : RmTone.danger,
+                      icon: u.isActive ? Icons.check_circle_outline : Icons.block,
+                    ),
+                    if (u.mustChangePassword)
+                      const StatusChip(label: 'Debe cambiar contraseña', tone: RmTone.warning, icon: Icons.password),
+                    Text('Último acceso: ${u.lastLoginAt == null ? 'nunca' : Dates.dmyHm(u.lastLoginAt!)}',
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ]),
+                ),
                 trailing: Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                   Tooltip(
                     message: u.isActive ? 'Desactivar' : 'Activar',
                     child: Switch(
                       value: u.isActive,
                       onChanged: (v) async {
-                        if (!v &&
-                            !await confirmAction(context,
+                        final ok = v
+                            ? await confirmAction(context,
+                                title: 'Activar usuario',
+                                message: '${u.username} podrá volver a iniciar sesión con su contraseña actual.',
+                                confirmLabel: 'Activar')
+                            : await confirmAction(context,
                                 title: 'Desactivar usuario',
                                 message: '${u.username} no podrá iniciar sesión.',
                                 confirmLabel: 'Desactivar',
-                                destructive: true)) {
-                          return;
-                        }
+                                destructive: true);
+                        if (!ok) return;
                         if (context.mounted) {
                           await _guard(context, ref, () => auth.setActive(by: me, userId: u.id, active: v),
                               v ? 'Usuario activado.' : 'Usuario desactivado.');
@@ -83,6 +109,14 @@ class UsuariosScreen extends ConsumerWidget {
                     onSelected: (a) async {
                       if (a == 'reset') await _resetPassword(context, ref, u);
                       if (a == 'admin' && context.mounted) {
+                        final ok = await confirmAction(context,
+                            title: u.isAdmin ? 'Quitar administrador' : 'Hacer administrador',
+                            message: u.isAdmin
+                                ? '${u.username} ya no podrá cambiar configuración, mapeo ni usuarios.'
+                                : '${u.username} podrá cambiar la configuración, el mapeo, la programación y los usuarios.',
+                            confirmLabel: u.isAdmin ? 'Quitar administrador' : 'Hacer administrador',
+                            destructive: u.isAdmin);
+                        if (!ok || !context.mounted) return;
                         await _guard(context, ref, () => auth.setAdmin(by: me, userId: u.id, isAdmin: !u.isAdmin),
                             u.isAdmin ? 'Ya no es administrador.' : 'Ahora es administrador.');
                       }
@@ -103,7 +137,7 @@ class UsuariosScreen extends ConsumerWidget {
   Future<void> _showTemp(BuildContext context, String user, String temp) => showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          icon: const Icon(Icons.check_circle, color: Color(0xFF1B7F3B)),
+          icon: Icon(Icons.check_circle_outline, color: context.rm.successIcon),
           title: const Text('Contraseña temporal'),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Usuario: $user'),

@@ -14,6 +14,7 @@ import '../../data/quickbooks/qbo_providers.dart';
 import '../../services/service_providers.dart';
 import '../../ui/guided/guided.dart';
 import '../help/help_content.dart';
+import '../onboarding/tour.dart';
 
 /// Amounts per category over the last 30 days (to show which have movement).
 final last30DaysProvider = FutureProvider<Map<String, double>>((ref) async {
@@ -90,7 +91,7 @@ class MapeoScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return const PageBody(children: [
       ScreenHeader(
-        icon: Icons.account_tree,
+        icon: Icons.lan_outlined,
         title: 'Mapeo de Cuentas',
         purpose: 'Indique a qué cuenta de QuickBooks va cada categoría del POS y si va al Debe o al Haber.',
         nextHint: 'Al terminar, revise el asiento en Vista Previa.',
@@ -114,6 +115,9 @@ class _MappingEditorState extends ConsumerState<MappingEditor> {
   bool _restored = false;
   ({int saved})? _done;
 
+  /// Field errors appear only after the user tried to continue (not on load).
+  bool _showErrors = false;
+
   Future<void> _init(Map<String, AccountMapping> saved) async {
     final cats = {...PosCategories.all, ...saved.keys}.toList();
     final rows = {for (final c in cats) c: _Row.from(c, saved[c])};
@@ -132,13 +136,17 @@ class _MappingEditorState extends ConsumerState<MappingEditor> {
     ref.read(draftStoreProvider).save(_draftKey, {for (final r in _rows!.values) r.category: r.toJson()});
   }
 
-  List<String> _problems(Iterable<String> cats) => [
-        for (final c in cats)
-          if ((_rows![c]!.accountId ?? '').isEmpty)
-            '${PosCategories.label(c)}: elija una cuenta.'
-          else if (!_rows![c]!.complete)
-            '${PosCategories.label(c)}: elija el ${_rows![c]!.entityType!.label.toLowerCase()}.',
-      ];
+  List<String> _problems(Iterable<String> cats) {
+    final p = [
+      for (final c in cats)
+        if ((_rows![c]!.accountId ?? '').isEmpty)
+          '${PosCategories.label(c)}: elija una cuenta.'
+        else if (!_rows![c]!.complete)
+          '${PosCategories.label(c)}: elija el ${_rows![c]!.entityType!.label.toLowerCase()}.',
+    ];
+    if (p.isNotEmpty && !_showErrors) setState(() => _showErrors = true);
+    return p;
+  }
 
   Future<void> _apply() async {
     final repo = ref.read(mappingRepositoryProvider);
@@ -220,6 +228,7 @@ class _MappingEditorState extends ConsumerState<MappingEditor> {
               accounts: accountList,
               amount30: last30.value?[c],
               enabled: isAdmin,
+              showErrors: _showErrors,
               onChanged: _changed,
             ),
         ]);
@@ -246,19 +255,28 @@ class _MappingEditorState extends ConsumerState<MappingEditor> {
             kind: GuidanceKind.warning,
             title: 'No se pudieron leer los montos de los últimos 30 días del POS',
             message: '${last30.error}\nPuede mapear igualmente.'),
-      Row(children: [
-        Text('${accountList.length} cuentas activas en QuickBooks', style: Theme.of(context).textTheme.bodySmall),
-        TextButton.icon(
-          onPressed: () {
-            ref.invalidate(qboAccountsProvider);
-            ref.invalidate(qboCustomersProvider);
-            ref.invalidate(qboVendorsProvider);
-          },
-          icon: const Icon(Icons.refresh, size: 16),
-          label: const Text('Volver a leer de QuickBooks'),
-        ),
-      ]),
-      StepWizard(
+      TourTarget(
+        id: 'mapeo:accounts',
+        child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, children: [
+          Text('${accountList.length} cuentas activas en QuickBooks', style: Theme.of(context).textTheme.bodySmall),
+          TextButton.icon(
+            onPressed: () {
+              ref.invalidate(qboAccountsProvider);
+              ref.invalidate(qboCustomersProvider);
+              ref.invalidate(qboVendorsProvider);
+            },
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Volver a leer de QuickBooks'),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 8),
+      TourTarget(id: 'mapeo:wizard', child: _wizard(ventas, pagos, group, isAdmin)),
+    ]);
+  }
+
+  Widget _wizard(List<String> ventas, List<String> pagos, Widget Function(List<String>) group, bool isAdmin) {
+    return StepWizard(
         completeLabel: 'Aplicar mapeo',
         steps: [
           WizardStep(
@@ -292,8 +310,7 @@ class _MappingEditorState extends ConsumerState<MappingEditor> {
           ),
         ],
         onComplete: _apply,
-      ),
-    ]);
+      );
   }
 }
 
@@ -318,8 +335,8 @@ class _Review extends StatelessWidget {
               DataCell(Text(r.side.label)),
               DataCell(Text(r.entityType == null ? '—' : '${r.entityType!.label}: ${r.entityName ?? '—'}')),
               DataCell(r.complete
-                  ? const Icon(Icons.check_circle, color: Color(0xFF1B7F3B), semanticLabel: 'Completo')
-                  : Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error, semanticLabel: 'Incompleto')),
+                  ? const StatusChip(label: 'Completo', tone: RmTone.success)
+                  : const StatusChip(label: 'Incompleto', tone: RmTone.warning)),
             ]),
         ]),
       );
@@ -332,12 +349,14 @@ class _MappingRowEditor extends ConsumerWidget {
     required this.amount30,
     required this.enabled,
     required this.onChanged,
+    this.showErrors = false,
   });
 
   final _Row row;
   final List<QboAccount> accounts;
   final double? amount30;
   final bool enabled;
+  final bool showErrors;
   final VoidCallback onChanged;
 
   @override
@@ -350,22 +369,30 @@ class _MappingRowEditor extends ConsumerWidget {
             ? ref.watch(qboVendorsProvider)
             : null;
 
+    final missingAccount = (row.accountId ?? '').isEmpty;
+    final (chipLabel, chipTone) = row.complete
+        ? ('Completo', RmTone.success)
+        : missingAccount
+            ? ('Falta cuenta', RmTone.warning)
+            : ('Falta ${row.entityType?.label.toLowerCase() ?? 'entidad'}', RmTone.warning);
+
+    // Neutral card; only the fields that need attention get warning/error styling.
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      color: row.complete ? null : Theme.of(context).colorScheme.surfaceContainerLow,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(row.complete ? Icons.check_circle : Icons.radio_button_unchecked,
-                color: row.complete ? const Color(0xFF1B7F3B) : Theme.of(context).colorScheme.outline, size: 20),
-            const SizedBox(width: 8),
+          Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
             Text(PosCategories.label(row.category), style: t.titleMedium),
-            Text('  (${row.category})', style: t.bodySmall),
-            const Spacer(),
+            Text('(${row.category})', style: t.bodySmall),
+            StatusChip(label: chipLabel, tone: chipTone),
             if (amount30 != null)
-              Text(Money.toCents(amount30!) == 0 ? 'Sin movimiento en 30 días' : 'Últimos 30 días: \$${Money.format(amount30!)}',
-                  style: t.bodySmall),
+              Money.toCents(amount30!) == 0
+                  ? Text('·  Sin movimiento en 30 días', style: t.bodySmall)
+                  : Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text('·  Últimos 30 días: ', style: t.bodySmall),
+                      MoneyText(amount30!, style: t.bodySmall),
+                    ]),
           ]),
           const SizedBox(height: 10),
           Wrap(spacing: 12, runSpacing: 12, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -379,7 +406,7 @@ class _MappingRowEditor extends ConsumerWidget {
               initialSelection: accounts.any((a) => a.id == row.accountId) ? row.accountId : null,
               label: const Text('Cuenta de QuickBooks *'),
               hintText: 'Escriba para buscar…',
-              errorText: (row.accountId ?? '').isEmpty ? 'Requerida' : null,
+              errorText: showErrors && missingAccount ? 'Requerida: elija una cuenta' : null,
               dropdownMenuEntries: [
                 for (final a in accounts)
                   DropdownMenuEntry(value: a.id, label: a.displayName, labelWidget: Text('${a.displayName}  ·  ${a.accountType ?? ''}')),
@@ -407,11 +434,12 @@ class _MappingRowEditor extends ConsumerWidget {
                       }
                     : null,
               ),
-              HelpTip('Recomendado para esta categoría: ${recommended.label}.'),
+              HelpTip('Indica en qué lado del asiento contable se registrará esta categoría. '
+                  'Recomendado: ${recommended.label}. Consulte a su contador si necesita cambiarlo.'),
             ]),
             if (row.side != recommended)
               Text('Diferente al recomendado (${recommended.label})',
-                  style: t.bodySmall?.copyWith(color: const Color(0xFF8A6100))),
+                  style: t.bodySmall?.copyWith(color: context.rm.warningText)),
           ]),
           const SizedBox(height: 10),
           Wrap(spacing: 12, runSpacing: 12, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -440,7 +468,19 @@ class _MappingRowEditor extends ConsumerWidget {
             if (entities != null)
               entities.when(
                 loading: () => const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-                error: (e, _) => Text('Error leyendo entidades: $e'),
+                error: (e, _) => Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.error_outline, size: 18, color: context.rm.dangerIcon),
+                  const SizedBox(width: 6),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 260),
+                    child: Text('No se pudo leer la lista de ${row.entityType!.label.toLowerCase()}s.',
+                        style: TextStyle(color: context.rm.dangerText)),
+                  ),
+                  TextButton(
+                    onPressed: () => ref.invalidate(row.entityType == EntityType.customer ? qboCustomersProvider : qboVendorsProvider),
+                    child: const Text('Reintentar'),
+                  ),
+                ]),
                 data: (list) => DropdownMenu<String>(
                   key: ValueKey('ent-${row.category}-${row.entityType}-${row.entityId}'),
                   width: 320,
@@ -450,7 +490,7 @@ class _MappingRowEditor extends ConsumerWidget {
                   menuHeight: 320,
                   initialSelection: list.any((x) => x.id == row.entityId) ? row.entityId : null,
                   label: Text('${row.entityType!.label} *'),
-                  errorText: (row.entityId ?? '').isEmpty ? 'Requerido' : null,
+                  errorText: showErrors && (row.entityId ?? '').isEmpty ? 'Requerido' : null,
                   dropdownMenuEntries: [for (final x in list) DropdownMenuEntry(value: x.id, label: x.displayName)],
                   onSelected: (id) {
                     final x = list.firstWhere((e) => e.id == id);

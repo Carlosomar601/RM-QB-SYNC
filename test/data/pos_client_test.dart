@@ -92,6 +92,20 @@ void main() {
     );
   });
 
+  test('HTTP 500 on AR endpoint points to the POS server, not the configuration', () async {
+    final a = FakeAdapter((o) async {
+      if (o.path.endsWith('SalesByMethod')) return FakeResponse(200, sales);
+      return const FakeResponse(500, '');
+    });
+    expect(
+      () => client(a).getSalesSummary(DateTime(2026, 5, 1), DateTime(2026, 5, 1)),
+      throwsA(isA<PosApiException>()
+          .having((e) => e.statusCode, 'status', 500)
+          .having((e) => e.message, 'message', contains('error interno'))
+          .having((e) => e.message, 'message', contains('ARReconciliationInvoices'))),
+    );
+  });
+
   test('connection refused is classified', () async {
     // Port 1 on loopback is closed on any normal machine.
     final c = RetailManagerPosClient(Dio(BaseOptions(baseUrl: 'http://127.0.0.1:1', connectTimeout: const Duration(seconds: 5))));

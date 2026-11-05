@@ -1,3 +1,9 @@
+/// Product identity. The visible name follows the design system v1.0; the
+/// technical name RMQBsync stays for paths, exe, registry and secrets.
+abstract final class AppInfo {
+  static const String displayName = 'RM Ledger Sync';
+}
+
 /// Domain constants shared by the POS client, the sync pipeline and the UI.
 abstract final class PosConstants {
   /// Hard cap on ARReconciliationInvoices pages to avoid infinite loops.

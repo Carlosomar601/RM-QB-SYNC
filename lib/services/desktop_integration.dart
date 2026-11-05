@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' show Size;
+import 'dart:ui' show Brightness, Size;
 
 import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:tray_manager/tray_manager.dart' as tray;
+// ignore: deprecated_member_use
+import 'package:window_manager/legacy.dart' as legacy show windowManager;
 import 'package:window_manager/window_manager.dart';
 
 import 'app_logger.dart';
@@ -46,11 +48,31 @@ class DesktopIntegration {
   tray.TrayIcon? _tray;
   bool _quitting = false;
 
+  /// The running integration (null in tests / before [init]).
+  static DesktopIntegration? current;
+  Brightness? _brightness;
+
+  /// Keeps the native title bar in the same light/dark mode as the app
+  /// (Automático, Claro or Oscuro). Best effort: ignored if unsupported.
+  void syncBrightness(Brightness b) {
+    if (_brightness == b) return;
+    _brightness = b;
+    try {
+      // ignore: deprecated_member_use
+      legacy.windowManager.setBrightness(b).catchError((Object e) {
+        AppLogger.error('No se pudo aplicar el tema a la barra de título', e);
+      });
+    } catch (e, st) {
+      AppLogger.error('No se pudo aplicar el tema a la barra de título', e, st);
+    }
+  }
+
   Future<void> init({required bool startMinimized}) async {
+    current = this;
     _window = WindowManager.instance.getCurrent();
     final w = _window;
     if (w != null) {
-      w.title = 'RMQBsync';
+      w.title = 'RM Ledger Sync';
       w.minimumSize = const Size(560, 520).toNative();
       if (startMinimized) w.hide();
       // Close button hides to the tray so schedules keep running.
@@ -66,7 +88,7 @@ class DesktopIntegration {
       final icon = tray.TrayIcon.create();
       if (icon != null) {
         icon.icon = tray.ImageAsset.fromAsset('assets/icons/app_icon.png');
-        icon.setTooltip('RMQBsync – sincronización POS → QuickBooks');
+        icon.setTooltip('RM Ledger Sync – sincronización POS → QuickBooks');
         final menu = tray.Menu.create()!;
         void item(String label, FutureOr<void> Function() onClick) {
           final it = tray.MenuItem.createWithLabelAndType(label, tray.MenuItemType.normal);
@@ -77,7 +99,7 @@ class DesktopIntegration {
           menu.addItem(it);
         }
 
-        item('Abrir RMQBsync', showWindow);
+        item('Abrir RM Ledger Sync', showWindow);
         item('Sincronizar ahora (hoy)', onSyncNow);
         menu.addSeparator();
         item('Salir (detiene las sincronizaciones programadas)', quit);

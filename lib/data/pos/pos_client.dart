@@ -156,6 +156,15 @@ class RetailManagerPosClient implements PosClient {
             url: url);
       case DioExceptionType.badResponse:
         final code = e.response?.statusCode;
+        if (code != null && code >= 500) {
+          return PosApiException(
+              'La API del POS tuvo un error interno (HTTP $code) en ${e.requestOptions.uri.path}. '
+              'La configuración de esta aplicación está bien; revise el servidor del POS '
+              '(registro de eventos de Windows, origen RMApiV2) o contacte a soporte.',
+              kind: PosErrorKind.http,
+              statusCode: code,
+              url: url);
+        }
         return PosApiException(
             'El POS respondió con error HTTP $code en ${e.requestOptions.uri.path}. '
             '${code == 404 ? 'Revise la ruta base de la API.' : code == 401 || code == 403 ? 'Revise la clave de API.' : ''}'

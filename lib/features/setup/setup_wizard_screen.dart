@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/app_state.dart';
 import '../../app/providers.dart';
 import '../../data/db/repositories.dart';
+import '../../ui/brand.dart';
 import '../../ui/guided/guided.dart';
 import '../help/help_content.dart';
 import '../mapping/mapeo_screen.dart';
@@ -49,7 +50,7 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
       return PageBody(children: [
         CompletionSummary(
           success: status.ready,
-          title: status.ready ? '¡RMQBsync está listo!' : 'Asistente terminado con pendientes',
+          title: status.ready ? '¡RM Ledger Sync está listo!' : 'Asistente terminado con pendientes',
           message: status.ready
               ? 'Ya puede revisar y enviar sus ventas a QuickBooks.'
               : 'Puede completar lo pendiente cuando quiera; la pantalla de Inicio le indicará qué falta.',
@@ -69,16 +70,17 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
 
     Widget check(bool ok, String text) => ListTile(
           dense: true,
-          leading: Icon(ok ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: ok ? const Color(0xFF1B7F3B) : Theme.of(context).colorScheme.outline),
+          leading: Icon(ok ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+              color: ok ? context.rm.successIcon : context.rm.textMuted,
+              semanticLabel: ok ? 'Listo' : 'Pendiente'),
           title: Text(text),
         );
 
     return PageBody(children: [
       ScreenHeader(
-        icon: Icons.auto_fix_high,
+        icon: Icons.auto_fix_high_outlined,
         title: 'Asistente de configuración',
-        purpose: 'Le guiamos paso a paso para dejar RMQBsync listo. Puede salir y volver; su avance se guarda.',
+        purpose: 'Le guiamos paso a paso para dejar RM Ledger Sync listo. Puede salir y volver; su avance se guarda.',
         actions: [TextButton(onPressed: () => context.go(Routes.dashboard), child: const Text('Salir del asistente'))],
       ),
       StepWizard(
@@ -88,7 +90,7 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
         steps: [
           WizardStep(
             title: 'Bienvenida',
-            explanation: 'RMQBsync lee los totales de ventas y pagos del POS Retail Manager y crea un asiento de diario '
+            explanation: 'RM Ledger Sync lee los totales de ventas y pagos del POS Retail Manager y crea un asiento de diario '
                 'balanceado en QuickBooks Online.',
             instructions: const [
               'Tenga a mano la IP y el puerto del servidor del POS.',
@@ -97,6 +99,12 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
             ],
             example: 'Tiempo estimado: 10 minutos.',
             builder: (_) => Column(children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: Center(
+                  child: SizedBox(width: 420, child: BrandHeader(subtitle: 'Bienvenido. Configuremos la conexión paso a paso.')),
+                ),
+              ),
               check(status?.posConfigured ?? false, 'API del POS configurada'),
               check(status?.qboCredentials ?? false, 'Credenciales de Intuit guardadas'),
               check(status?.qboConnected ?? false, 'QuickBooks conectado'),
@@ -117,7 +125,7 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
           ),
           WizardStep(
             title: 'QuickBooks',
-            explanation: 'Autorice a RMQBsync para crear asientos en su compañía de QuickBooks Online.',
+            explanation: 'Autorice a RM Ledger Sync para crear asientos en su compañía de QuickBooks Online.',
             instructions: const [
               'Si las credenciales no están guardadas, escriba Client ID y Client Secret y presione "Aplicar cambios".',
               'Presione "Conectar con QuickBooks" y complete la autorización en el navegador.',

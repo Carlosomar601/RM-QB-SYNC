@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/tokens.dart';
 import 'help_tip.dart';
 
 /// Titled card used to group related controls.
@@ -32,8 +33,8 @@ class SectionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(children: [
-              if (icon != null) ...[Icon(icon), const SizedBox(width: 10)],
-              Flexible(child: Semantics(header: true, child: Text(title, style: t.titleLarge))),
+              if (icon != null) ...[Icon(icon, size: 22, color: context.rm.link), const SizedBox(width: 10)],
+              Flexible(child: Semantics(header: true, child: Text(title, style: t.titleLarge?.copyWith(fontWeight: FontWeight.w600)))),
               if (help != null) HelpTip(help!),
               const Spacer(),
               ?trailing,
@@ -66,7 +67,7 @@ class AdvancedOptions extends StatelessWidget {
       child: ExpansionTile(
         tilePadding: EdgeInsets.zero,
         initiallyExpanded: initiallyExpanded,
-        leading: const Icon(Icons.tune),
+        leading: const Icon(Icons.tune, size: 20),
         title: Text(title),
         subtitle: const Text('Solo si su técnico se lo indica'),
         childrenPadding: const EdgeInsets.only(bottom: 8),

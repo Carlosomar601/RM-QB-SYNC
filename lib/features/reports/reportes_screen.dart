@@ -12,17 +12,28 @@ class ReportesScreen extends StatelessWidget {
         const ScreenHeader(
           icon: Icons.bar_chart,
           title: 'Reportes',
-          purpose: 'Esta sección estará disponible en una próxima versión.',
+          purpose: 'Reportes de ventas y envíos a QuickBooks.',
           nextHint: 'Mientras tanto, use Vista Previa o Historial.',
         ),
-        GuidanceBanner(
-          kind: GuidanceKind.info,
-          title: 'Próximamente',
-          message: 'Para ver totales por categoría use Vista Previa; para ver lo enviado a QuickBooks use Historial.',
-          actionLabel: 'Ir a Vista Previa',
-          onAction: () => context.go(Routes.vistaPrevia),
-          secondaryLabel: 'Ir a Historial',
-          onSecondary: () => context.go(Routes.historial),
+        Card(
+          child: EmptyState(
+            icon: Icons.bar_chart,
+            title: 'Los reportes llegarán en una próxima versión',
+            message: 'Mientras tanto: para ver los totales por categoría de cualquier rango use Vista Previa; '
+                'para ver qué se envió a QuickBooks y su resultado use Historial.',
+            actions: [
+              FilledButton.icon(
+                onPressed: () => context.go(Routes.vistaPrevia),
+                icon: const Icon(Icons.find_in_page_outlined),
+                label: const Text('Ir a Vista Previa'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => context.go(Routes.historial),
+                icon: const Icon(Icons.history),
+                label: const Text('Ir a Historial'),
+              ),
+            ],
+          ),
         ),
       ]);
 }

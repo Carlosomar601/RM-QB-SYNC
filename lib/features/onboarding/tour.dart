@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../app/tokens.dart';
 import '../../data/db/repositories.dart';
 import '../../services/service_providers.dart';
 
@@ -30,10 +31,63 @@ const tourSteps = <TourStep>[
   TourStep('appbar:guide', 'Guíame', 'Puede reanudar este recorrido cuando quiera desde aquí o desde Ayuda.'),
 ];
 
+/// Task guidance for a single screen ("Guíame" pressed on that screen).
+/// Targets that are not on screen (e.g. admin-only controls) are skipped.
+const screenTours = <String, List<TourStep>>{
+  '/inicio': [
+    TourStep('inicio:next', 'Siguiente paso recomendado',
+        'Se calcula con el estado real: configuración, autorización de QuickBooks y el resultado de la última sincronización.'),
+    TourStep('inicio:status', 'Estado de las conexiones',
+        'QuickBooks, el POS y el resultado de la última sincronización. Toque una tarjeta para ver el detalle.'),
+  ],
+  '/sincronizaciones': [
+    TourStep('sync:presets', '1. Elija el rango', 'Toque un atajo como "Ayer". Se enviará un solo asiento con la fecha del último día.'),
+    TourStep('sync:actions', '2. Revise y envíe',
+        'Si es la primera vez, revise antes en Vista Previa. "Sincronizar ahora" pide confirmación antes de enviar.'),
+    TourStep('sync:schedule', 'Sincronización automática',
+        'Aquí ve si la programación está activa, cuándo corre y el resultado de la última ejecución.'),
+  ],
+  '/vista-previa': [
+    TourStep('preview:wizard', 'Tres pasos',
+        '1) Elija el rango. 2) Revise que el asiento esté balanceado. 3) Confirme y envíe. Nada se envía hasta que confirme.'),
+  ],
+  '/mapeo': [
+    TourStep('mapeo:accounts', 'Cuentas de QuickBooks',
+        'Se leen de QuickBooks. Si creó una cuenta nueva, use "Volver a leer de QuickBooks".'),
+    TourStep('mapeo:wizard', 'Asigne cada categoría',
+        'Para cada categoría del POS elija la cuenta y el lado (Debe o Haber). Al final revise y aplique.'),
+  ],
+  '/configuracion': [
+    TourStep('config:qbo', 'QuickBooks Online',
+        'Conecte, pruebe o reconecte QuickBooks. Aquí ve el ambiente y hasta cuándo vale la autorización.'),
+    TourStep('config:creds', 'Credenciales de Intuit', 'Client ID y Client Secret de developer.intuit.com. El secreto nunca se muestra.'),
+    TourStep('config:pos', 'API del POS', 'Dirección del servidor Retail Manager. Pruebe la conexión antes de aplicar.'),
+  ],
+  '/historial': [
+    TourStep('historial:filters', 'Buscar y filtrar', 'Filtre por estado u origen, o busque por fecha, usuario o mensaje.'),
+    TourStep('historial:table', 'Resultado de cada envío',
+        'Toque una fila para ver el detalle. En las fallidas, "Ver error" explica la causa y cómo resolverla.'),
+  ],
+  '/auditoria': [
+    TourStep('auditoria:filter', 'Buscar acciones', 'Escriba un usuario, una acción o parte del detalle para filtrar.'),
+  ],
+  '/usuarios': [
+    TourStep('usuarios:create', 'Crear usuario', 'Se genera una contraseña temporal que el usuario deberá cambiar al entrar.'),
+  ],
+  '/ayuda': [
+    TourStep('ayuda:tabs', 'Centro de ayuda', 'Referencia rápida, tutoriales, preguntas frecuentes, solución de problemas y la versión.'),
+  ],
+};
+
 class TourState {
-  const TourState({this.active = false, this.step = 0});
+  const TourState({this.active = false, this.step = 0, this.steps = tourSteps});
   final bool active;
   final int step;
+
+  /// Steps being shown: the global tour or a screen tour.
+  final List<TourStep> steps;
+
+  bool get isGlobal => identical(steps, tourSteps);
 }
 
 class TourController extends Notifier<TourState> {
@@ -48,7 +102,20 @@ class TourController extends Notifier<TourState> {
     if (!await isDone()) await resume();
   }
 
-  /// Starts or resumes from the paused step.
+  /// "Guíame": guidance for the screen at [location]; the global tour when
+  /// the screen has none (or none of its targets are visible).
+  Future<void> guide(String location) async {
+    final entry = screenTours.entries.where((e) => location.startsWith(e.key)).firstOrNull;
+    final visible =
+        entry?.value.where((st) => TourTargets.key(st.targetId).currentContext != null).toList() ?? const <TourStep>[];
+    if (visible.isEmpty) return resume();
+    state = TourState(active: true, steps: [
+      ...visible,
+      const TourStep('appbar:help', 'Ayuda de esta pantalla', 'Presione F1 o este botón para ver la ayuda sin perder su trabajo.'),
+    ]);
+  }
+
+  /// Starts or resumes the global tour from the paused step.
   Future<void> resume() async {
     final saved = int.tryParse(await ref.read(settingsRepositoryProvider).get('tour.step.$_user') ?? '') ?? 0;
     state = TourState(active: true, step: saved.clamp(0, tourSteps.length - 1));
@@ -61,23 +128,31 @@ class TourController extends Notifier<TourState> {
   }
 
   Future<void> next() async {
-    if (state.step >= tourSteps.length - 1) return finish();
-    state = TourState(active: true, step: state.step + 1);
-    await ref.read(settingsRepositoryProvider).set('tour.step.$_user', '${state.step}');
+    if (state.step >= state.steps.length - 1) return finish();
+    state = TourState(active: true, step: state.step + 1, steps: state.steps);
+    if (state.isGlobal) await ref.read(settingsRepositoryProvider).set('tour.step.$_user', '${state.step}');
   }
 
   void previous() {
-    if (state.step > 0) state = TourState(active: true, step: state.step - 1);
+    if (state.step > 0) state = TourState(active: true, step: state.step - 1, steps: state.steps);
   }
 
   /// Hides the tour but remembers the step ("Pausar").
   Future<void> pause() async {
+    if (!state.isGlobal) {
+      state = const TourState();
+      return;
+    }
     await ref.read(settingsRepositoryProvider).set('tour.step.$_user', '${state.step}');
     state = TourState(active: false, step: state.step);
   }
 
   /// "Omitir" / finished: never auto-start again for this user.
   Future<void> finish() async {
+    if (!state.isGlobal) {
+      state = const TourState();
+      return;
+    }
     await ref.read(settingsRepositoryProvider).setBool(SettingKeys.tourDone(_user), true);
     await ref.read(settingsRepositoryProvider).set('tour.step.$_user', '0');
     state = const TourState();
@@ -111,7 +186,8 @@ class _TourOverlayState extends ConsumerState<TourOverlay> {
   Widget build(BuildContext context) {
     final s = ref.watch(tourProvider);
     if (!s.active) return const SizedBox.shrink();
-    final step = tourSteps[s.step];
+    final steps = s.steps;
+    final step = steps[s.step.clamp(0, steps.length - 1)];
     final ctl = ref.read(tourProvider.notifier);
 
     return LayoutBuilder(builder: (context, constraints) {
@@ -152,7 +228,7 @@ class _TourOverlayState extends ConsumerState<TourOverlay> {
         Positioned.fill(
           child: GestureDetector(
             onTap: () {},
-            child: CustomPaint(painter: _ScrimPainter(target, Theme.of(context).colorScheme.primary)),
+            child: CustomPaint(painter: _ScrimPainter(target, context.rm.focus)),
           ),
         ),
         Positioned(
@@ -169,20 +245,21 @@ class _TourOverlayState extends ConsumerState<TourOverlay> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Recorrido ${s.step + 1} de ${tourSteps.length}', style: Theme.of(context).textTheme.labelMedium),
+                    Text('${s.isGlobal ? 'Recorrido' : 'Guía'} ${s.step + 1} de ${steps.length}',
+                        style: Theme.of(context).textTheme.labelMedium),
                     const SizedBox(height: 4),
                     Text(step.title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     Text(step.text),
                     const SizedBox(height: 12),
                     Wrap(spacing: 4, runSpacing: 4, alignment: WrapAlignment.end, children: [
-                      TextButton(onPressed: ctl.finish, child: const Text('Omitir')),
-                      TextButton(onPressed: ctl.pause, child: const Text('Pausar')),
+                      TextButton(onPressed: ctl.finish, child: Text(s.isGlobal ? 'Omitir' : 'Cerrar')),
+                      if (s.isGlobal) TextButton(onPressed: ctl.pause, child: const Text('Pausar')),
                       if (s.step > 0) OutlinedButton(onPressed: ctl.previous, child: const Text('Atrás')),
                       FilledButton(
                         autofocus: true,
                         onPressed: ctl.next,
-                        child: Text(s.step == tourSteps.length - 1 ? 'Terminar' : 'Siguiente'),
+                        child: Text(s.step == steps.length - 1 ? 'Terminar' : 'Siguiente'),
                       ),
                     ]),
                   ],
@@ -203,7 +280,7 @@ class _ScrimPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scrim = Paint()..color = Colors.black.withValues(alpha: 0.55);
+    final scrim = Paint()..color = RmColors.scrim;
     final path = Path()..addRect(Offset.zero & size);
     if (hole != null) {
       path

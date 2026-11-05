@@ -5,77 +5,140 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/dates.dart';
-import '../../core/money.dart';
 import '../../core/sync_rules.dart';
 import '../../data/db/app_database.dart';
 import '../../ui/guided/guided.dart';
 import '../help/help_content.dart';
+import '../onboarding/tour.dart';
 
 final historyProvider = StreamProvider<List<SyncHistoryRow>>(
   (ref) => ref.watch(historyRepositoryProvider).watchRecent(200),
 );
 
-class StatusChip extends StatelessWidget {
-  const StatusChip(this.status, {super.key});
+/// Sync-run status pill (icon + text + tint; never color alone).
+class SyncStatusChip extends StatelessWidget {
+  const SyncStatusChip(this.status, {super.key});
   final SyncStatus status;
 
   @override
   Widget build(BuildContext context) {
-    final (color, icon) = switch (status) {
-      SyncStatus.success => (const Color(0xFF1B7F3B), Icons.check_circle),
-      SyncStatus.failed => (Theme.of(context).colorScheme.error, Icons.cancel),
-      SyncStatus.skipped => (const Color(0xFF8A6100), Icons.skip_next),
-      SyncStatus.running => (Theme.of(context).colorScheme.primary, Icons.hourglass_top),
+    final (tone, icon) = switch (status) {
+      SyncStatus.success => (RmTone.success, Icons.check_circle_outline),
+      SyncStatus.failed => (RmTone.danger, Icons.error_outline),
+      SyncStatus.skipped => (RmTone.warning, Icons.skip_next_outlined),
+      SyncStatus.running => (RmTone.info, Icons.schedule),
     };
-    return Chip(
-      avatar: Icon(icon, color: color, size: 18),
-      label: Text(status.label),
-      visualDensity: VisualDensity.compact,
-      side: BorderSide(color: color.withValues(alpha: 0.5)),
+    return StatusChip(label: status.label, tone: tone, icon: icon);
+  }
+}
+
+/// Best-effort recovery hint for a failure message (UI guidance only).
+({String hint, String? label, String? route}) recoveryFor(String message) {
+  final m = message.toLowerCase();
+  if (m.contains('balance') || m.contains('cuadr') || m.contains('diferencia')) {
+    return (
+      hint: 'El asiento no cuadra. Abra Vista Previa con el mismo rango y use "Diagnosticar diferencia".',
+      label: null,
+      route: null,
     );
   }
+  if (m.contains('mapeo') || m.contains('sin cuenta') || m.contains('categor')) {
+    return (hint: 'Falta asignar una cuenta de QuickBooks a alguna categoría.', label: 'Ir a Mapeo de Cuentas', route: Routes.mapeo);
+  }
+  if (m.contains('cliente') || m.contains('suplidor') || m.contains('entidad')) {
+    return (hint: 'Una cuenta de Cuentas por Cobrar o por Pagar necesita un cliente o suplidor.', label: 'Ir a Mapeo de Cuentas', route: Routes.mapeo);
+  }
+  if (m.contains('401') || m.contains('token') || m.contains('autoriz') || m.contains('invalid_grant') || m.contains('conect')) {
+    return (
+      hint: 'Puede que la autorización de QuickBooks haya vencido o la conexión falló. Pruebe o reconecte QuickBooks.',
+      label: 'Ir a Configuración',
+      route: Routes.configuracion,
+    );
+  }
+  if (m.contains('pos') || m.contains('socket') || m.contains('timeout') || m.contains('tiempo de espera')) {
+    return (
+      hint: 'No se pudo leer el POS. Verifique que el servidor Retail Manager esté encendido y en la red.',
+      label: 'Ir a Configuración',
+      route: Routes.configuracion,
+    );
+  }
+  if (m.contains('cerró antes')) {
+    return (hint: 'La aplicación se cerró durante el envío. Revise en QuickBooks si el asiento existe antes de volver a enviar.', label: null, route: null);
+  }
+  return (hint: 'Revise el rango en Vista Previa para ver el asiento y los avisos antes de volver a enviarlo.', label: null, route: null);
 }
 
 Future<void> showHistoryDetail(BuildContext context, SyncHistoryRow r) => showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Sincronización #${r.id}'),
-        content: SizedBox(
-          width: 720,
-          child: SingleChildScrollView(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Wrap(spacing: 8, children: [StatusChip(SyncStatus.parse(r.status))]),
-              const SizedBox(height: 8),
-              Text('Rango: ${Dates.dmy(r.fromDate)} al ${Dates.dmy(r.toDate)}'),
-              Text('Ejecutada: ${Dates.dmyHm(r.ranAt)} · ${SyncTrigger.parse(r.trigger).label} · ${r.performedBy}'),
-              if (r.qboJournalEntryId != null) Text('Asiento en QuickBooks: #${r.qboJournalEntryId}'),
-              if (r.totalDebit != null)
-                Text('Debe: \$${Money.format(r.totalDebit!)} · Haber: \$${Money.format(r.totalCredit ?? 0)}'),
-              if (r.errorMessage != null) ...[
-                const SizedBox(height: 8),
-                GuidanceBanner(
-                  kind: SyncStatus.parse(r.status) == SyncStatus.skipped ? GuidanceKind.warning : GuidanceKind.error,
-                  title: 'Mensaje',
-                  message: r.errorMessage,
-                ),
-              ],
-              if (r.requestJson != null) _JsonBlock('JSON enviado a QuickBooks', r.requestJson!),
-              if (r.responseJson != null) _JsonBlock('Respuesta de QuickBooks', r.responseJson!),
-            ]),
-          ),
-        ),
-        actions: [
-          if (SyncStatus.parse(r.status) != SyncStatus.success)
-            TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                GoRouter.of(context).go('${Routes.vistaPrevia}?desde=${Dates.iso(r.fromDate)}&hasta=${Dates.iso(r.toDate)}');
-              },
-              child: const Text('Revisar en Vista Previa'),
+      builder: (ctx) {
+        final st = SyncStatus.parse(r.status);
+        final t = Theme.of(ctx).textTheme;
+        void go(String route) {
+          Navigator.of(ctx).pop();
+          GoRouter.of(context).go(route);
+        }
+
+        final previewRoute = '${Routes.vistaPrevia}?desde=${Dates.iso(r.fromDate)}&hasta=${Dates.iso(r.toDate)}';
+        final rec = r.errorMessage == null ? null : recoveryFor(r.errorMessage!);
+        Widget kv(String k, Widget v) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SizedBox(width: 170, child: Text(k, style: t.bodyMedium?.copyWith(color: ctx.rm.textSecondary))),
+                Expanded(child: v),
+              ]),
+            );
+        return AlertDialog(
+          title: Row(children: [
+            Expanded(child: Text('Sincronización #${r.id}')),
+            SyncStatusChip(st),
+          ]),
+          content: SizedBox(
+            width: 720,
+            child: SingleChildScrollView(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                kv('Rango', Text('${Dates.dmy(r.fromDate)} al ${Dates.dmy(r.toDate)}')),
+                kv('Ejecutada', Text(Dates.dmyHm(r.ranAt))),
+                kv('Origen', Text('${SyncTrigger.parse(r.trigger).label} · ${r.performedBy}')),
+                if (r.qboJournalEntryId != null) kv('Asiento en QuickBooks', Text('#${r.qboJournalEntryId}')),
+                if (r.totalDebit != null) ...[
+                  kv('Total Debe', MoneyText(r.totalDebit!, align: TextAlign.left)),
+                  kv('Total Haber', MoneyText(r.totalCredit ?? 0, align: TextAlign.left)),
+                ],
+                if (r.errorMessage != null) ...[
+                  const SizedBox(height: 10),
+                  ErrorDetailPanel(
+                    tone: st == SyncStatus.failed ? RmTone.danger : RmTone.warning,
+                    title: switch (st) {
+                      SyncStatus.failed => 'Qué pasó: la sincronización falló y no se creó el asiento',
+                      SyncStatus.skipped => 'Qué pasó: se omitió para no duplicar un envío anterior',
+                      _ => 'Mensaje',
+                    },
+                    message: r.errorMessage!,
+                    hint: st == SyncStatus.failed
+                        ? '${rec?.hint ?? ''} Antes de cada envío se comprueba si el rango ya fue aceptado por QuickBooks, '
+                            'así que no se duplicará.'
+                        : null,
+                    actions: [
+                      if (st != SyncStatus.success)
+                        FilledButton.tonal(onPressed: () => go(previewRoute), child: const Text('Revisar en Vista Previa')),
+                      if (rec != null && rec.route != null)
+                        OutlinedButton(onPressed: () => go(rec.route!), child: Text(rec.label!)),
+                    ],
+                  ),
+                ] else if (st != SyncStatus.success) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton(onPressed: () => go(previewRoute), child: const Text('Revisar en Vista Previa')),
+                ],
+                if (r.requestJson != null) _JsonBlock('JSON enviado a QuickBooks', r.requestJson!),
+                if (r.responseJson != null) _JsonBlock('Respuesta de QuickBooks', r.responseJson!),
+              ]),
             ),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cerrar')),
-        ],
-      ),
+          ),
+          actions: [
+            FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cerrar')),
+          ],
+        );
+      },
     );
 
 class _JsonBlock extends StatelessWidget {
@@ -96,71 +159,188 @@ class _JsonBlock extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(8),
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            decoration: BoxDecoration(
+              color: context.rm.surfaceAlt,
+              borderRadius: BorderRadius.circular(RmRadius.control),
+              border: Border.all(color: context.rm.border),
+            ),
             child: SelectableText(json, style: const TextStyle(fontFamily: 'Consolas', fontSize: 12)),
           ),
         ],
       );
 }
 
-class HistorialScreen extends ConsumerWidget {
+class HistorialScreen extends ConsumerStatefulWidget {
   const HistorialScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HistorialScreen> createState() => _HistorialScreenState();
+}
+
+class _HistorialScreenState extends ConsumerState<HistorialScreen> {
+  final _search = TextEditingController();
+  SyncStatus? _status;
+  SyncTrigger? _trigger;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  bool _matches(SyncHistoryRow r) {
+    if (_status != null && SyncStatus.parse(r.status) != _status) return false;
+    if (_trigger != null && SyncTrigger.parse(r.trigger) != _trigger) return false;
+    final q = _search.text.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return [
+      Dates.dmyHm(r.ranAt),
+      Dates.dmy(r.fromDate),
+      Dates.dmy(r.toDate),
+      r.performedBy,
+      r.errorMessage ?? '',
+      r.qboJournalEntryId ?? '',
+      SyncStatus.parse(r.status).label,
+    ].any((s) => s.toLowerCase().contains(q));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final rows = ref.watch(historyProvider);
-    return PageBody(children: [
+    return PageBody(maxWidth: 1400, children: [
       const ScreenHeader(
         icon: Icons.history,
         title: 'Historial',
         purpose: 'Resultado de las últimas 200 sincronizaciones. Toque una fila para ver el detalle.',
-        nextHint: 'Si una falló, abra el detalle y use "Revisar en Vista Previa".',
+        nextHint: 'Si una falló, use "Ver error": explica la causa y cómo resolverla.',
       ),
+      TourTarget(
+        id: 'historial:filters',
+        child: Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          SizedBox(
+            width: 320,
+            child: TextField(
+              controller: _search,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Buscar por fecha, usuario, asiento o mensaje',
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          for (final (label, st) in const [
+            ('Todas', null),
+            ('Exitosas', SyncStatus.success),
+            ('Fallidas', SyncStatus.failed),
+            ('Omitidas', SyncStatus.skipped),
+            ('En curso', SyncStatus.running),
+          ])
+            ChoiceChip(label: Text(label), selected: _status == st, onSelected: (_) => setState(() => _status = st)),
+          const SizedBox(width: 8),
+          DropdownButton<SyncTrigger?>(
+            value: _trigger,
+            underline: const SizedBox.shrink(),
+            hint: const Text('Origen: todos'),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('Origen: todos')),
+              for (final tr in SyncTrigger.values) DropdownMenuItem(value: tr, child: Text('Origen: ${tr.label}')),
+            ],
+            onChanged: (v) => setState(() => _trigger = v),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 8),
       rows.when(
         loading: () => const LoadingBox(),
-        error: (e, _) => GuidanceBanner(kind: GuidanceKind.error, title: 'Error', message: '$e'),
-        data: (list) => list.isEmpty
-            ? const GuidanceBanner(
-                kind: GuidanceKind.info,
+        error: (e, _) => GuidanceBanner(kind: GuidanceKind.error, title: 'No se pudo leer el historial', message: '$e'),
+        data: (all) {
+          if (all.isEmpty) {
+            return Card(
+              child: EmptyState(
+                icon: Icons.history,
                 title: 'Todavía no hay sincronizaciones',
-                message: 'Cuando envíe un asiento desde Vista Previa o una programación se ejecute, aparecerá aquí.')
-            : Card(
-                child: SingleChildScrollView(
+                message: 'Cuando envíe un asiento desde Vista Previa o una programación se ejecute, aparecerá aquí.',
+                actions: [OutlinedButton(onPressed: () => context.go(Routes.vistaPrevia), child: const Text('Ir a Vista Previa'))],
+              ),
+            );
+          }
+          final list = all.where(_matches).toList();
+          if (list.isEmpty) {
+            return Card(
+              child: EmptyState(
+                icon: Icons.filter_alt_off_outlined,
+                title: 'Ninguna sincronización coincide con el filtro',
+                actions: [
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _search.clear();
+                      _status = null;
+                      _trigger = null;
+                    }),
+                    child: const Text('Quitar filtros'),
+                  ),
+                ],
+              ),
+            );
+          }
+          return TourTarget(
+            id: 'historial:table',
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              child: LayoutBuilder(
+                builder: (context, c) => SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    showCheckboxColumn: false,
-                    columns: const [
-                      DataColumn(label: Text('Ejecutada')),
-                      DataColumn(label: Text('Rango')),
-                      DataColumn(label: Text('Estado')),
-                      DataColumn(label: Text('Origen')),
-                      DataColumn(label: Text('Usuario')),
-                      DataColumn(label: Text('Total'), numeric: true),
-                      DataColumn(label: Text('Asiento QBO')),
-                      DataColumn(label: Text('Mensaje')),
-                    ],
-                    rows: [
-                      for (final r in list)
-                        DataRow(
-                          onSelectChanged: (_) => showHistoryDetail(context, r),
-                          cells: [
-                            DataCell(Text(Dates.dmyHm(r.ranAt))),
-                            DataCell(Text('${Dates.dmy(r.fromDate)} – ${Dates.dmy(r.toDate)}')),
-                            DataCell(StatusChip(SyncStatus.parse(r.status))),
-                            DataCell(Text(SyncTrigger.parse(r.trigger).label)),
-                            DataCell(Text(r.performedBy)),
-                            DataCell(Text(r.totalDebit == null ? '—' : Money.format(r.totalDebit!))),
-                            DataCell(Text(r.qboJournalEntryId ?? '—')),
-                            DataCell(SizedBox(
-                              width: 320,
-                              child: Text(r.errorMessage ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                            )),
-                          ],
-                        ),
-                    ],
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: c.maxWidth),
+                    child: DataTable(
+                      showCheckboxColumn: false,
+                      columns: const [
+                        DataColumn(label: Text('Ejecutada')),
+                        DataColumn(label: Text('Rango')),
+                        DataColumn(label: Text('Estado')),
+                        DataColumn(label: Text('Origen')),
+                        DataColumn(label: Text('Usuario')),
+                        DataColumn(label: Text('Total'), numeric: true),
+                        DataColumn(label: Text('Asiento QBO')),
+                        DataColumn(label: Text('Mensaje')),
+                      ],
+                      rows: [
+                        for (final r in list)
+                          DataRow(
+                            onSelectChanged: (_) => showHistoryDetail(context, r),
+                            cells: [
+                              DataCell(Text(Dates.dmyHm(r.ranAt))),
+                              DataCell(Text('${Dates.dmy(r.fromDate)} – ${Dates.dmy(r.toDate)}')),
+                              DataCell(SyncStatusChip(SyncStatus.parse(r.status))),
+                              DataCell(Text(SyncTrigger.parse(r.trigger).label)),
+                              DataCell(ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 220),
+                                child: Text(r.performedBy, overflow: TextOverflow.ellipsis),
+                              )),
+                              DataCell(r.totalDebit == null ? const Text('—') : MoneyText(r.totalDebit!)),
+                              DataCell(Text(r.qboJournalEntryId ?? '—')),
+                              DataCell(SyncStatus.parse(r.status) == SyncStatus.failed
+                                  ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 260),
+                                        child: Text(r.errorMessage ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
+                                      ),
+                                      TextButton(onPressed: () => showHistoryDetail(context, r), child: const Text('Ver error')),
+                                    ])
+                                  : ConstrainedBox(
+                                      constraints: const BoxConstraints(maxWidth: 340),
+                                      child: Text(r.errorMessage ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
+                                    )),
+                            ],
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
+            ),
+          );
+        },
       ),
     ]);
   }

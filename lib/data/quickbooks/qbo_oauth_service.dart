@@ -142,7 +142,7 @@ class QboOAuthService {
       return (
         status: 400,
         html: _page('Solicitud no válida', 'El enlace de autorización no corresponde a un intento activo o ya venció. '
-            'Vuelva a RMQBsync y presione "Conectar con QuickBooks" otra vez.', ok: false)
+            'Vuelva a RM Ledger Sync y presione "Conectar con QuickBooks" otra vez.', ok: false)
       );
     }
     if (q['error'] != null) {
@@ -177,7 +177,7 @@ class QboOAuthService {
       attempt.completer.complete(result);
       return (
         status: 200,
-        html: _page('¡Conectado!', 'RMQBsync quedó conectado a QuickBooks${name == null ? '' : ' ($name)'}. '
+        html: _page('¡Conectado!', 'RM Ledger Sync quedó conectado a QuickBooks${name == null ? '' : ' ($name)'}. '
             'Ya puede cerrar esta ventana y volver a la aplicación.', ok: true)
       );
     } catch (e) {
@@ -190,7 +190,7 @@ class QboOAuthService {
   static String _page(String title, String body, {required bool ok}) {
     const esc = HtmlEscape();
     final color = ok ? '#1b7f3b' : '#b3261e';
-    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>RMQBsync</title>'
+    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>RM Ledger Sync</title>'
         '<style>body{font-family:Segoe UI,Arial,sans-serif;background:#f5f5f5;display:flex;align-items:center;'
         'justify-content:center;height:100vh;margin:0}.c{background:#fff;padding:32px 40px;border-radius:12px;'
         'max-width:520px;box-shadow:0 2px 12px rgba(0,0,0,.1)}h1{color:$color;margin-top:0}</style></head>'

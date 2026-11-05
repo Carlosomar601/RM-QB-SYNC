@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/tokens.dart';
+
 enum GuidanceKind { info, success, warning, error }
 
 /// Inline message with an optional "how to fix" action.
@@ -25,13 +27,14 @@ class GuidanceBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final (bg, fg, icon, semantic) = switch (kind) {
-      GuidanceKind.info => (cs.secondaryContainer, cs.onSecondaryContainer, Icons.lightbulb_outline, 'Información'),
-      GuidanceKind.success => (const Color(0xFFDDF3E4), const Color(0xFF0B4F25), Icons.check_circle_outline, 'Éxito'),
-      GuidanceKind.warning => (const Color(0xFFFFF1CC), const Color(0xFF5C4300), Icons.warning_amber_rounded, 'Advertencia'),
-      GuidanceKind.error => (cs.errorContainer, cs.onErrorContainer, Icons.error_outline, 'Error'),
+    final (tone, icon, semantic) = switch (kind) {
+      GuidanceKind.info => (RmTone.info, Icons.lightbulb_outline, 'Información'),
+      GuidanceKind.success => (RmTone.success, Icons.check_circle_outline, 'Éxito'),
+      GuidanceKind.warning => (RmTone.warning, Icons.warning_amber_rounded, 'Advertencia'),
+      GuidanceKind.error => (RmTone.danger, Icons.error_outline, 'Error'),
     };
+    final c = context.rm.tone(tone);
+    final fg = c.fg;
     return Semantics(
       container: true,
       liveRegion: kind == GuidanceKind.error || kind == GuidanceKind.success,
@@ -39,11 +42,15 @@ class GuidanceBanner extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(
+          color: c.bg,
+          borderRadius: BorderRadius.circular(RmRadius.control),
+          border: Border.all(color: c.icon.withValues(alpha: 0.35)),
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: fg),
+            Icon(icon, color: c.icon, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -60,7 +67,12 @@ class GuidanceBanner extends StatelessWidget {
                       if (actionLabel != null)
                         FilledButton.tonal(onPressed: onAction, child: Text(actionLabel!)),
                       if (secondaryLabel != null)
-                        TextButton(onPressed: onSecondary, child: Text(secondaryLabel!)),
+                        TextButton(
+                          // Link color would not be AA on every status tint; use the banner text color.
+                          style: TextButton.styleFrom(foregroundColor: fg),
+                          onPressed: onSecondary,
+                          child: Text(secondaryLabel!, style: const TextStyle(decoration: TextDecoration.underline)),
+                        ),
                     ]),
                   ],
                 ],

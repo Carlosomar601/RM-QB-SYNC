@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "pr.retailmanager" "\0"
-            VALUE "FileDescription", "rmqbsync" "\0"
+            VALUE "FileDescription", "RM Ledger Sync" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "rmqbsync" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 pr.retailmanager. All rights reserved." "\0"
             VALUE "OriginalFilename", "rmqbsync.exe" "\0"
-            VALUE "ProductName", "rmqbsync" "\0"
+            VALUE "ProductName", "RM Ledger Sync" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

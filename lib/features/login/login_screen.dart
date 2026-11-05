@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../app/theme_mode.dart';
 import '../../data/db/repositories.dart';
 import '../../services/auth_service.dart';
 import '../../services/service_providers.dart';
+import '../../ui/brand.dart';
 import '../../ui/guided/guided.dart';
 import '../help/help_content.dart';
 
@@ -64,6 +66,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final temp = ref.watch(firstRunPasswordProvider);
     final t = Theme.of(context).textTheme;
     return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        shape: const Border(),
+        actions: const [ThemeModeButton(), SizedBox(width: 8)],
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -71,20 +78,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             constraints: const BoxConstraints(maxWidth: 440),
             child: Card(
               child: Padding(
-                padding: const EdgeInsets.all(28),
+                padding: const EdgeInsets.all(24),
                 child: Form(
                   key: _form,
                   child: AutofillGroup(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Image.asset('assets/icons/app_icon.png', height: 64, semanticLabel: 'Logo RMQBsync'),
-                        const SizedBox(height: 12),
-                        Text('RMQBsync', textAlign: TextAlign.center, style: t.headlineMedium),
-                        Text('Ventas del POS Retail Manager → QuickBooks Online',
-                            textAlign: TextAlign.center, style: t.bodyMedium),
-                        const SizedBox(height: 20),
-                        Text('Inicie sesión con su usuario de RMQBsync (no el de QuickBooks).', style: t.bodyMedium),
+                        const BrandHeader(compact: true, subtitle: 'Ventas del POS Retail Manager → QuickBooks Online'),
+                        const SizedBox(height: 16),
+                        Text('Inicie sesión con su usuario de RM Ledger Sync (no el de QuickBooks).', style: t.bodyMedium),
                         const SizedBox(height: 12),
                         if (temp != null)
                           GuidanceBanner(

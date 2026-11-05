@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/tokens.dart';
+
 /// "¿Dónde estoy? / ¿Qué hago aquí? / ¿Qué sigue?" header for every screen.
 class ScreenHeader extends StatelessWidget {
   const ScreenHeader({
@@ -32,8 +34,8 @@ class ScreenHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              if (icon != null) ...[Icon(icon, size: 30, color: cs.primary), const SizedBox(width: 12)],
-              Expanded(child: Semantics(header: true, child: Text(title, style: t.headlineSmall))),
+              if (icon != null) ...[Icon(icon, size: 28, color: context.rm.link), const SizedBox(width: 12)],
+              Expanded(child: Semantics(header: true, child: Text(title, style: t.headlineMedium))),
               ...actions,
             ],
           ),
@@ -43,11 +45,11 @@ class ScreenHeader extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                Icon(Icons.arrow_forward, size: 16, color: cs.primary),
+                Icon(Icons.arrow_forward, size: 16, color: context.rm.link),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text('Qué sigue: $nextHint',
-                      style: t.bodyMedium?.copyWith(color: cs.primary, fontWeight: FontWeight.w500)),
+                      style: t.bodyMedium?.copyWith(color: context.rm.link, fontWeight: FontWeight.w600)),
                 ),
               ],
             ),

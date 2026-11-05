@@ -6,7 +6,9 @@
 #ifndef AppVersion
   #define AppVersion "1.0.0"
 #endif
-#define AppName      "RMQBsync"
+#define AppName      "RM Ledger Sync"
+; Technical name: install folder, data folder, Run key, service and setup file.
+#define TechName     "RMQBsync"
 #define AppExe       "rmqbsync.exe"
 #define Publisher    "Retail Manager PR"
 #define ReleaseDir   "..\build\windows\x64\runner\Release"
@@ -20,7 +22,7 @@ AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#Publisher}
 AppComments=Sincroniza las ventas del POS Retail Manager con QuickBooks Online
-DefaultDirName={autopf}\{#AppName}
+DefaultDirName={autopf}\{#TechName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
@@ -34,6 +36,8 @@ OutputDir=output
 OutputBaseFilename=RMQBsync-Setup
 SetupIconFile=..\assets\icons\app_icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
+; Tell Explorer to refresh icons at the end, so shortcuts never keep a cached old icon.
+ChangesAssociations=yes
 UninstallDisplayName={#AppName}
 WizardStyle=modern
 CloseApplications=force
@@ -48,7 +52,7 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "startup"; Description: "Iniciar RMQBsync con Windows (minimizado en la bandeja) – recomendado para las sincronizaciones programadas"; GroupDescription: "Opciones:"
+Name: "startup"; Description: "Iniciar {#AppName} con Windows (minimizado en la bandeja) – recomendado para las sincronizaciones programadas"; GroupDescription: "Opciones:"
 Name: "desktopicon"; Description: "Crear un acceso directo en el escritorio"; GroupDescription: "Opciones:"; Flags: unchecked
 
 [Dirs]
@@ -60,10 +64,17 @@ Name: "{commonappdata}\RMQBsync\logs"; Permissions: users-modify; Flags: uninsne
 ; Clean program folder on upgrade (removes the legacy .NET/Blazor files).
 ; Data lives in %ProgramData%\RMQBsync and is never touched.
 Type: filesandordirs; Name: "{app}\*"
+; Shortcuts from versions named "RMQBsync" (now "RM Ledger Sync").
+Type: filesandordirs; Name: "{commonprograms}\{#TechName}"
+Type: files; Name: "{commondesktop}\{#TechName}.lnk"
+Type: files; Name: "{userdesktop}\{#TechName}.lnk"
 
 [Files]
 ; Complete Flutter release output: exe, flutter_windows.dll, plugin DLLs, data\ (app.so, icudtl.dat, assets).
 Source: "{#ReleaseDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Shortcut icon as its own file: a new path Windows has never cached (the desktop
+; kept showing an old icon cached for rmqbsync.exe).
+Source: "..\assets\icons\app_icon.ico"; DestDir: "{app}"; DestName: "rmledgersync.ico"; Flags: ignoreversion
 ; App-local VC++ runtime (fallback if the redistributable cannot be installed).
 Source: "{#PrereqDir}\vcruntime\msvcp140.dll";     DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PrereqDir}\vcruntime\vcruntime140.dll";  DestDir: "{app}"; Flags: ignoreversion
@@ -76,16 +87,18 @@ Source: "factory-secrets.local.json"; DestDir: "{commonappdata}\RMQBsync"; DestN
 #endif
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "Abrir RMQBsync"
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\rmledgersync.ico"; Comment: "Abrir {#AppName}"
 Name: "{group}\Carpeta de datos y registros"; Filename: "{commonappdata}\RMQBsync"
 Name: "{group}\Desinstalar {#AppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\rmledgersync.ico"; Comment: "Abrir {#AppName}"; Tasks: desktopicon
 
 [Registry]
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "RMQBsync"; ValueData: """{app}\{#AppExe}"" --minimized"; Flags: uninsdeletevalue; Tasks: startup
 
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "Abrir RMQBsync ahora"; Flags: nowait postinstall skipifsilent runasoriginaluser
+; Rebuild Windows' icon cache so the new icon shows immediately.
+Filename: "{sys}\ie4uinit.exe"; Parameters: "-show"; Flags: runhidden waituntilterminated; StatusMsg: "Actualizando iconos..."
+Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName} ahora"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM {#AppExe}"; Flags: runhidden; RunOnceId: "KillApp"

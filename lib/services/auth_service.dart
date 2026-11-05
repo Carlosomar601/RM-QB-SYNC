@@ -128,7 +128,7 @@ class AuthService {
       try {
         Directory(AppPaths.dataDir).createSync(recursive: true);
         File(firstAccessFile).writeAsStringSync(
-          'RMQBsync - primer acceso\r\n\r\nUsuario: $seedAdminUsername\r\nContraseña temporal: $temp\r\n\r\n'
+          'RM Ledger Sync - primer acceso\r\n\r\nUsuario: $seedAdminUsername\r\nContraseña temporal: $temp\r\n\r\n'
           'Se le pedirá cambiarla al iniciar sesión. Este archivo se borra automáticamente después del cambio.\r\n',
         );
       } catch (e) {

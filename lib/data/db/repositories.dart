@@ -19,6 +19,11 @@ abstract final class SettingKeys {
   static const launchAtStartup = 'app.launchAtStartup';
   static const setupWizardDone = 'app.setupWizardDone';
   static String tourDone(String user) => 'tour.done.$user';
+  static String themeMode(String user) => 'ui.theme.$user';
+
+  /// Last appearance chosen on this computer; used before login and for
+  /// users who have not chosen one yet.
+  static const themeModeDevice = 'ui.theme';
   static String draft(String wizard, String user) => 'draft.$wizard.$user';
 }
 
